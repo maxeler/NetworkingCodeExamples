@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry combineaccessrules="false" kind="src" path="/maxeda"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="lib" path="/network-raid/opt/maxcompiler-2014.2/lib/MaxCompiler.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/maxmpt-bitstreams"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

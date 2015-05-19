@@ -1,0 +1,87 @@
+package com.maxeler.examples.trading.cme;
+
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelConfiguration;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.mpt.cme.ilink.CmeILinkConfiguration;
+import com.maxeler.mpt.cme.ilink.CmeILinkHandler;
+import com.maxeler.mpt.cme.mdp.CmeMdpConfiguration;
+import com.maxeler.mpt.cme.mdp.CmeMdpHandler;
+import com.maxeler.mpt.core.internal.marketdata.MarketDataConfiguration.UdpChecksumMode;
+import com.maxeler.mpt.core.internal.marketdata.MarketDataConfiguration.UpdateOutputMode;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+import com.maxeler.networking.v1.managers.netlib.TimestampSource;
+
+
+public class CmeTradingManager extends NetworkManager {
+	public CmeTradingManager(CmeTradingEngineParameters params) {
+		super(params.getEngineParams());
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
+		pushTimestampSource(TimestampSource.HOST_CLOCK);
+
+		/*
+		 * MDP3 Market Data Handler
+		 */
+		CmeMdpConfiguration    mdConfig = new CmeMdpConfiguration("md", params.getMdConnectionA(), params.getMdConnectionB());
+		mdConfig.addMarketDataOutput(CmeTradingTypes.cmeTradingMarketDataFormat);
+		mdConfig.setUpdateOutputMode(UpdateOutputMode.SECURITY_CHANGE);
+		mdConfig.setUdpChecksumMode(UdpChecksumMode.LOCK_UP);
+
+		CmeMdpHandler mdHandler = new CmeMdpHandler(this, mdConfig);
+
+		/*
+		 * iLink Order Entry
+		 */
+		CmeILinkConfiguration orderEntryConfig = new CmeILinkConfiguration("orderEntry", params.getOrderEntryConnection());
+		// Tell the iLink block what is the structure of the new Order Command
+		orderEntryConfig.addOrderInput(CmeTradingTypes.cmeTradingNewOrderSingleFormat);
+		orderEntryConfig.addResponseOutput(CmeTradingTypes.cmeTradingResponseFormat);
+		CmeILinkHandler orderEntry = new CmeILinkHandler(this, orderEntryConfig);
+
+		/*
+		 * Specify Clock to use for Strategy
+		 */
+		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		pushDefaultClock(netClk);
+
+		// Tell the compiler to annotate the source code with latency information
+		KernelConfiguration tradingKernelConfig = new KernelConfiguration(getCurrentKernelConfig());
+		tradingKernelConfig.debug.setEnableLatencyAnnotation(true);
+		tradingKernelConfig.debug.setEnableLongestPathAnnotation(CmeTradingStrategyKernel.INPUT_MARKET_DATA, CmeTradingStrategyKernel.OUTPUT_GEN_TRADE_CMD);
+
+		/*
+		 * Trading Strategy kernel
+		 */
+		KernelBlock kernel = addKernel(
+				new CmeTradingStrategyKernel(makeKernelParameters("tradingStrategy", tradingKernelConfig),
+						mdHandler, orderEntry));
+
+		// Connect kernel to Market Data
+		kernel.getInput(CmeTradingStrategyKernel.INPUT_MARKET_DATA) <== mdHandler.getMarketDataOutput();
+		kernel.getInput(CmeTradingStrategyKernel.INPUT_MATCHED_ORDERS) <== mdHandler.getMatchedOrdersOutput();
+		kernel.getInput(CmeTradingStrategyKernel.INPUT_SECURITY_STATUS) <== mdHandler.getSecurityStatusOutput();
+		kernel.getInput(CmeTradingStrategyKernel.INPUT_RESPONSE) <== orderEntry.getResponseOutput();
+
+		// Connect kernel to Order Entry
+		orderEntry.getOrderInput() <== kernel.getOutput(CmeTradingStrategyKernel.OUTPUT_GEN_TRADE_CMD);
+	}
+
+	public static void main(String[] args) {
+		CmeTradingEngineParameters params = new CmeTradingEngineParameters(args);
+		CmeTradingManager manager = new CmeTradingManager(params);
+
+		BuildConfig buildConfig = manager.getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+		buildConfig.setEnableChipscopeInserter(true);
+		manager.setBuildConfig(buildConfig);
+		manager.build();
+	}
+
+}

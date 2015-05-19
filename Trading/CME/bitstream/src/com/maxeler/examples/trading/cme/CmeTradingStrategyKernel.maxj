@@ -1,0 +1,265 @@
+package com.maxeler.examples.trading.cme;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.examples.trading.cme.CmeTradingTypes.CmeTradingMarketDataFormat;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType.StructFieldType;
+import com.maxeler.mpt.cme.ilink.CmeILinkHandler;
+import com.maxeler.mpt.cme.ilink.CmeILinkOrderFormat.Tag;
+import com.maxeler.mpt.cme.ilink.CmeILinkUtils;
+import com.maxeler.mpt.cme.ilink.CmeILinkUtils.StringPrice;
+import com.maxeler.mpt.cme.internal.mdp.CmeMdpUpdateFormat.CmeMdpMatchedOrdersOutputFormat;
+import com.maxeler.mpt.cme.mdp.CmeMdpHandler;
+import com.maxeler.mpt.cme.mdp.CmeMdpMarketDataFormat;
+import com.maxeler.mpt.cme.mdp.CmeMdpMarketDataFormat.OrderBookTag;
+import com.maxeler.mpt.core.marketdata.Side;
+import com.maxeler.mpt.core.orderentry.OrderEntryLinkType;
+import com.maxeler.mpt.core.protocols.fix.utils.HWString;
+import com.maxeler.mpt.core.protocols.mdp3.decoder.MDP3Types.SecurityStatusStruct;
+import com.maxeler.networking.statemachines.Flushing;
+import com.maxeler.networking.v1.framed_kernels.FrameData;
+import com.maxeler.networking.v1.framed_kernels.FrameFormat;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
+
+public class CmeTradingStrategyKernel extends ThroughputFramedKernel {
+	public static final String INPUT_MARKET_DATA = "mdInput";
+	public static final String INPUT_MATCHED_ORDERS = "mdOrders";
+	public static final String INPUT_SECURITY_STATUS = "mdStatus";
+	public static final String INPUT_RESPONSE = "iLinkResponse";
+
+	private static final int READY_TO_TRADE = 17;
+
+	public static final String OUTPUT_GEN_TRADE_CMD = "genTradeCmd";
+	private final OrderEntryLinkType orderEntryLinkType;
+	private final FrameFormat orderEntryFormat;
+
+	private final DFEVar sideSell = constant.var(dfeRawBits(8), '2');
+	private final DFEVar ordTypeLimit = constant.var(dfeRawBits(8), '2');
+	private final DFEVar timeInForceDay = constant.var(dfeRawBits(8), '0');
+	private final boolean is_simprintf = true;
+
+
+	CmeTradingStrategyKernel(KernelParameters parameters, CmeMdpHandler mdHandler, CmeILinkHandler orderEntry) {
+		super(parameters);
+
+		FramedLinkType mdLinkType = mdHandler.getMarketDataOutputLinkType();
+		DFEStructType mdInputType = mdLinkType.getDFEStructType();
+
+		DFEStructType securityStatusStructType = mdHandler.getSecurityStatusStruct();
+
+		FramedLinkType responseLinkType = orderEntry.getResponseOutputLinkType();
+		DFEStructType responseInputType = responseLinkType.getDFEStructType();
+
+		int requiredInterFrameGap = 1;
+
+		NonBlockingInput<DFEStruct> mdInput = io.nonBlockingInput(INPUT_MARKET_DATA, mdInputType,
+				constant.var(true),
+				mdInputType.getPositionForField(mdLinkType.getEOF()),
+				DelimiterMode.EOF_POSITION,
+				requiredInterFrameGap,
+				NonBlockingMode.NO_TRICKLING);
+
+		NonBlockingInput<DFEStruct> matchedOrdersInput = io.nonBlockingInput(INPUT_MATCHED_ORDERS, new CmeMdpMatchedOrdersOutputFormat(),
+				constant.var(true),
+				1, // Inputs are not frames, rather they are words of length 1
+				DelimiterMode.FRAME_LENGTH,
+				Flushing.interFrameGapNone,
+				NonBlockingMode.NO_TRICKLING);
+
+		NonBlockingInput<DFEStruct> securityStatusInput = io.nonBlockingInput(INPUT_SECURITY_STATUS, securityStatusStructType,
+				constant.var(true),
+				1, // Inputs are not frames, rather they are words of length 1
+				DelimiterMode.FRAME_LENGTH,
+				Flushing.interFrameGapNone,
+				NonBlockingMode.NO_TRICKLING);
+
+		NonBlockingInput<DFEStruct> responseInput = io.nonBlockingInput(INPUT_RESPONSE, responseInputType,
+				constant.var(true),
+				responseInputType.getPositionForField(responseLinkType.getEOF()),
+				DelimiterMode.EOF_POSITION,
+				requiredInterFrameGap,
+				NonBlockingMode.NO_TRICKLING);
+
+		DFEStruct mdInputStruct = mdInput.data;
+		DFEVar mdValid = mdInput.valid;
+
+		DFEStruct matchedOrders = matchedOrdersInput.data;
+		DFEVar matchedOrdersValid = matchedOrdersInput.valid;
+
+		DFEStruct securityStatuses = securityStatusInput.data;
+		DFEVar SecurityStatusesValid = securityStatusInput.valid;
+
+		DFEStruct responseInputStruct = responseInput.data;
+		DFEVar responseValid = responseInput.valid;
+
+		DFEVar rawMarketData = (DFEVar)mdInputStruct.get(mdLinkType.getData());
+		DFEStructType mdStructType = convertFrameFormatToStructType(CmeTradingTypes.cmeTradingMarketDataFormat.getFrameFormat());
+		DFEStruct marketDataStruct =  mdStructType.unpack(rawMarketData); // Effectively, casts the rawMarketData to the structure type (no actual logic created)
+
+		DFEVar rawResponse = (DFEVar)responseInputStruct.get(responseLinkType.getData());
+		DFEStructType responseStructType = convertFrameFormatToStructType(CmeTradingTypes.cmeTradingResponseFormat.getFrameFormat());
+		DFEStruct responseDataStruct =  responseStructType.unpack(rawResponse);
+
+		DFEVar responsePrice	= responseDataStruct[Tag.Price.toString()];
+		DFEVar responseOrderQty	= responseDataStruct[Tag.OrderQty.toString()];
+		DFEVar responseOrderID	= responseDataStruct[Tag.OrderID.toString()];
+		DFEVar responseMsgType	= responseDataStruct[Tag.MsgType.toString()];
+		if (is_simprintf) {
+			debug.simPrintf(
+					responseValid,
+					"Response: Price = %x, OrderQty = %x, OrderID = %x, MsgType = %x\n",
+					responsePrice,
+					responseOrderQty,
+					responseOrderID,
+					responseMsgType);
+		}
+		orderEntryLinkType = orderEntry.getOrderInputLinkType();
+		orderEntryFormat = CmeTradingTypes.cmeTradingNewOrderSingleFormat.getFrameFormat();
+
+		FrameData<FrameFormat> orderCommand = new FrameData<FrameFormat>(
+				this,
+				orderEntryFormat,
+				orderEntryLinkType
+		);
+
+		assignString(orderCommand, Tag.Account, "ABC12");
+		assignString(orderCommand, Tag.Symbol, "Sym321");
+		assignString(orderCommand, Tag.SecurityDesc, "INST");
+		assignString(orderCommand, Tag.SecurityType, "FUT");
+
+		// Replicate the input price
+		StringPrice price =	CmeILinkUtils.convertPriceToString(
+				getOrderBookField(marketDataStruct, Side.BUY, 1, OrderBookTag.PriceMantissa),
+				//getOrderBookField(marketDataStruct, Side.BUY, 1, OrderBookTag.PriceExponent),
+				constant.var(dfeInt(8), -7), // Constant -7 on MDP 3.0
+				getFieldSizeBytes(orderCommand, Tag.Price));
+		DFEVar orderQtyUint = getOrderBookField(marketDataStruct, Side.BUY, 1, OrderBookTag.Quantity);
+		DFEVar orderQty = CmeILinkUtils.convertUIntToString(
+				orderQtyUint, getFieldSizeBytes(orderCommand, Tag.OrderQty));
+		DFEVar orderCount = control.count.makeCounter(
+				control.count.makeParams(16)
+					.withEnable(mdValid)
+					.withInitValue(1)).getCount();
+
+		DFEVar rptSeq = getMarketDataField(marketDataStruct, CmeMdpMarketDataFormat.Tag.RptSeq);
+		DFEVar clOrdId = CmeILinkUtils.snprintfClOrdID(this, getFieldSizeBytes(orderCommand, Tag.ClOrdID), "%d", rptSeq);
+
+
+		/*
+		 * We always sell the top of book in this example
+		 */
+
+		DFEVar captureNewOrder = mdValid & getMarketDataField(marketDataStruct, CmeMdpMarketDataFormat.Tag.IsTrade);
+		if (is_simprintf ) {
+			debug.simPrintf(
+					captureNewOrder,
+					"NewOrder: OC[%u] Price = %x Price_valid = %d, Price_Mantissa = %d, OrderQty = %d clOrdId = %x, nb_digits = %d\n",
+					orderCount,
+					price.str,
+					price.valid,
+					getOrderBookField(marketDataStruct, Side.BUY, 1,
+							OrderBookTag.PriceMantissa),
+					getOrderBookField(marketDataStruct, Side.BUY, 1,
+							OrderBookTag.Quantity), clOrdId,
+					getFieldSizeBytes(orderCommand, Tag.Price));
+		}
+		orderCommand[Tag.Price.name()] <== Reductions.streamHold(price.valid ? price.str : constString("TooShort", getFieldSizeBytes(orderCommand, Tag.Price)), captureNewOrder);
+		orderCommand[Tag.OrderQty.name()] <== Reductions.streamHold(orderQty, captureNewOrder);
+		orderCommand[Tag.ClOrdID.name()] <== Reductions.streamHold(clOrdId, captureNewOrder);
+
+		orderCommand[Tag.Side.name()] <== sideSell;
+		orderCommand[Tag.OrdType.name()] <== ordTypeLimit;
+		orderCommand[Tag.TimeInForce.name()] <== timeInForceDay;
+
+		assignSession(orderCommand);
+
+		DFEVar matchedOrderId = matchedOrders[CmeMdpMatchedOrdersOutputFormat.ORDER_ID];
+		DFEVar matchedOrderQty = matchedOrders[CmeMdpMatchedOrdersOutputFormat.LAST_QTY];
+
+		DFEVar securityTradingStatus = securityStatuses[SecurityStatusStruct.SECURITY_TRADING_STATUS];
+		DFEVar securityGroup = securityStatuses[SecurityStatusStruct.SECURITY_GROUP];
+		securityTradingStatus = Reductions.streamHold(securityTradingStatus,SecurityStatusesValid);
+
+		/*
+		 * This is nonsense, but it's just to illustrate the concept :)
+		 * We Send the order when we see that the market was open, responseOrderID
+		 * is lower then it is now and that the price at the top of the book has changed
+		 */
+		DFEVar responseOK = responseOrderID	< orderCount;
+		DFEVar marketOpen = Reductions.streamHold(securityTradingStatus === READY_TO_TRADE, SecurityStatusesValid);
+		DFEVar lastPrice = Reductions.streamHold(price.str, captureNewOrder);
+		lastPrice = stream.offset(lastPrice, -1);
+		DFEVar priceChange = price.str !== lastPrice;
+		DFEVar pushOrderNow =(~responseOK & responseValid & marketOpen) |  (matchedOrdersValid & priceChange);
+
+		if (is_simprintf) {
+			debug.simPrintf(
+					pushOrderNow,
+					"pushOrder: OC[%u] Price %x, Price_valid %d, Price_Mantissa %d, OrderQty %d clOrdId %x, securityTradingStatus %x,securityGroup %x, lastPrice %x, priceChange %d\n",
+					orderCount,
+					price.str,
+					price.valid,
+					getOrderBookField(marketDataStruct, Side.BUY, 1,
+							OrderBookTag.PriceMantissa),
+							getOrderBookField(marketDataStruct, Side.BUY, 1,
+									OrderBookTag.Quantity),
+									clOrdId,
+									securityTradingStatus,
+									securityGroup,
+									lastPrice,
+									priceChange);
+		}
+		io.frameOutput(OUTPUT_GEN_TRADE_CMD, orderCommand, constant.var(true), pushOrderNow);
+	}
+
+	private static DFEStructType convertFrameFormatToStructType(FrameFormat format) {
+		List<StructFieldType> fields = new ArrayList<StructFieldType>();
+		for (String f : format.getFieldNames()) {
+			fields.add(DFEStructType.sft(f, format.getFieldInfo().get(f).getType()));
+		}
+		return new DFEStructType(fields.toArray(new StructFieldType[0]));
+	}
+
+	private DFEVar getOrderBookField(DFEStruct md, Side side, int level, OrderBookTag tag) {
+		return md[CmeTradingMarketDataFormat.getTagName(side, tag, level)];
+	}
+
+	private DFEVar getMarketDataField(DFEStruct md, CmeMdpMarketDataFormat.Tag tag) {
+		return md[tag.name()];
+	}
+
+	private void assignSession(FrameData<FrameFormat> orderCommand) {
+		// The iLink Session ID to use
+		orderCommand.linkfield[orderEntryLinkType.getSessionID()] <== constant.var(orderCommand.linkfield[orderEntryLinkType.getSessionID()].getType(), 0);
+	}
+
+	private void assignString(FrameData<FrameFormat> cmd, Tag tag, String theString) {
+		int fieldSizeBytes = getFieldSizeBytes(cmd, tag);
+		if (fieldSizeBytes < theString.length()) {
+			throw new RuntimeException(String.format("OrderEntry tag '%s': String '%s' is too long for field of size %d\n",
+					tag.name(), theString, fieldSizeBytes));
+		}
+
+		cmd[tag.name()] <== constString(theString, fieldSizeBytes);
+	}
+
+	private int getFieldSizeBytes(FrameData<FrameFormat> cmd, Tag tag) {
+		return cmd[tag.name()].getType().getTotalBits() / 8;
+	}
+
+	private DFEVar constString(String str, int length) {
+		return constant.var(dfeRawBits(length*8), new HWString.KStringType(length).encodeConstant(str));
+	}
+
+}
+

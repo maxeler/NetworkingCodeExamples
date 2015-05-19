@@ -1,0 +1,94 @@
+package com.maxeler.examples.FIFOGateway;
+
+
+import java.util.LinkedList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.DFELink;
+import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.Max4QMem;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.MemoryControllerConfig;
+import com.maxeler.maxjlibs.network.TCPFramer;
+import com.maxeler.maxjlibs.network.proto.FIXProtoSpecFactory;
+import com.maxeler.maxjlibs.network.proto.ProtoSpecFactory;
+import com.maxeler.networking.statemachines.TCPRxWindowMemory;
+import com.maxeler.networking.statemachines.TCPTxWindowMemory;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.netlib.TCPStreamRaw;
+import com.maxeler.utils.MemoryManager;
+
+
+public class FIFOGatewayManager extends NetworkManager {
+	private final MemoryManager memManager;
+
+	private void configureMemoryController() {
+		MemoryControllerConfig mcc = new MemoryControllerConfig();
+		config.setOnCardMemoryFrequency(800);
+		mcc.setMAX4qMode(true);
+		mcc.setBurstSize(8);
+
+		mcc.setEnableParityMode(true, true, 72, false);
+		mcc.setEnableFlagCommands(true);
+		config.setMemoryControllerConfig(mcc);
+	}
+
+	public FIFOGatewayManager(FIFOGatewayEngineParameters params) {
+		super(params.getEngineParams());
+
+		FIFOGatewayTypes types = new FIFOGatewayTypes(params.getMaxTCPVersion());
+
+		configureMemoryController();
+
+		memManager = new MemoryManager(this);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
+
+		TCPStreamRaw tcpStream = addTCPStreamRaw("tcpStream", params.getEthConnection(), params.getNumTcpConnectionsSupported());
+
+		ManagerClock netClk = getNetworkClock(params.getEthConnection());
+		pushDefaultClock(netClk);
+
+		if (!params.isSimulation()) {
+			TCPTxWindowMemory.connectToQMem(this, params.getEthConnection(), params.getMaxTCPVersion(), Max4QMem.QMEM1);
+			TCPRxWindowMemory.connectToQMem(this, params.getEthConnection(), params.getMaxTCPVersion(), Max4QMem.QMEM2);
+		}
+
+		int framerDepth = params.getNumTcpConnectionsSupported() * params.getMaxTcpWindowSize();
+
+		List<ProtoSpecFactory> specFactories = new LinkedList<ProtoSpecFactory>();
+		specFactories.add(new FIXProtoSpecFactory());
+
+		DFELink framed = TCPFramer.create(this, "gateway",
+				params.getEthConnection(),
+				tcpStream,
+				tcpStream.getConnStateEventStream(),
+				framerDepth,
+				memManager, specFactories);
+
+		KernelBlock inbound = addKernel(new Inbound(makeKernelParameters("inbound"), types));
+		inbound.getInput(Inbound.INPUT_FROM_FRAMER) <== framed;
+		addFramedStreamToCPU("toCPU", types.simpleLinkType) <== inbound.getOutput(Inbound.OUTPUT_TO_CPU);
+
+		KernelBlock outbound = addKernel(new Outbound(makeKernelParameters("outbound"), types));
+
+		outbound.getInput(Outbound.INPUT_FROM_CPU) <== addFramedStreamFromCPU("fromCPU", types.simpleLinkType);
+		tcpStream.getTransmitStream() <== outbound.getOutput(Outbound.OUTPUT_TO_TCP);
+	}
+
+	public static void main(String[] args) {
+		FIFOGatewayEngineParameters params = new FIFOGatewayEngineParameters(args);
+		FIFOGatewayManager manager = new FIFOGatewayManager(params);
+
+		params.applyParamsToManager(manager);
+
+		BuildConfig buildConfig = manager.getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+}

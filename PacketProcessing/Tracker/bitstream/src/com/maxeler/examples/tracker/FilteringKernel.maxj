@@ -1,0 +1,196 @@
+package com.maxeler.examples.tracker;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxjlibs.functors.BinaryFunctor;
+import com.maxeler.maxjlibs.reductions.TreeReduce;
+import com.maxeler.networking.statemachines.Flushing;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+
+public class FilteringKernel extends Kernel {
+	public static final String INPUT_MESSAGES = "messages";
+	public static final String OUTPUT_MY_OUTPUT = "myOutput";
+
+	public static final int WORD_SIZE_BYTES = 8;
+
+	public static final OutputLinkType outputLinkType = new OutputLinkType();
+	public static class OutputLinkType extends DFEStructType implements FramedLinkType {
+		public OutputLinkType() {
+			super(
+					sft("data", dfeRawBits(64)),
+					sft("sof", dfeBool()),
+					sft("eof", dfeBool()),
+					sft("mod", dfeUInt(3))
+			);
+		}
+
+		@Override public String getEOF() { return "eof"; }
+		@Override public String getSOF() { return "sof"; }
+		@Override public String getData() {	return "data"; }
+		@Override public String getMod() { return "mod";	}
+		@Override public DFEStructType getDFEStructType() {	return this; }
+	}
+
+
+	FilteringKernel(KernelParameters parameters) {
+		super(parameters);
+
+		flush.disabled();
+
+		NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_MESSAGES, MessageTracker.outputType,
+				constant.var(true),
+				MessageTracker.outputType.getPositionForField(MessageTracker.OutputType.EOM),
+				DelimiterMode.EOF_POSITION,
+				Flushing.interFrameGapNone, // Upstream state machine will take care of inter-frame gap
+				NonBlockingMode.NO_TRICKLING);
+
+		DFEStruct inputStruct = theInput.data;
+		DFEVar valid = theInput.valid;
+
+		DFEVar data = inputStruct.get(MessageTracker.OutputType.DATA);
+		DFEVar som = inputStruct.get(MessageTracker.OutputType.SOM);
+		DFEVar eom = inputStruct.get(MessageTracker.OutputType.EOM);
+		DFEVar isPadding = inputStruct.get(MessageTracker.OutputType.PADDING);
+		// Capture alignment value at start of Message
+		DFEVar alignment = Reductions.streamHold((DFEVar)inputStruct.get(MessageTracker.OutputType.ALIGNMENT), valid & som);
+		DFEVar alignedData = realign(data, alignment);
+
+		DFEVar alignedData_off0 = stream.offset(alignedData, 0);
+		DFEVar alignedData_off1 = stream.offset(alignedData, 1);
+
+		DFEVar isStart = valid & som;
+
+		/*
+		 * Extract Field C
+		 */
+		DFEVar field =
+			Reductions.streamHold(alignedData_off1.slice(0, 16), isStart) #
+			Reductions.streamHold(alignedData_off0.slice(7*8, 8), isStart);
+
+		DFEVar searchField = field.cast(dfeUInt(24));
+
+		debug.simPrintf(isStart, "alignedData_off0 = %x, alignedData_off1 = %x\n", alignedData_off0, alignedData_off1);
+		debug.simPrintf(isStart, "searchField = %x\n", searchField);
+
+		/*
+		 * Lets compare searchField to 1024 values given by the CPU.
+		 * We do this using a tree. We will later use the TreeReduce.reduce method to find out if there was a match.
+		 *
+		 *
+		 * Build fanout tree:
+		 * sf -> 4 * sf -> 16 *sf -> 64 * sf -> 256 * sf -> 1024 * sf
+		 */
+		List<DFEVar> searchFieldFanout = buildSearchFieldTree(searchField, 1024, 4);
+
+		DFEVar comparisonResults [] = new DFEVar[1024];
+		for (int i = 0; i < 1024; ++i) {
+			DFEVar fv = io.scalarInput("filter_" + i, dfeUInt(24));
+			comparisonResults[i] = fv === searchFieldFanout.get(i);
+		}
+
+		optimization.pushPipeliningFactor(0);
+		DFEVar match = TreeReduce.reduce(2, true, new BinaryFunctor.Or<DFEVar>(), comparisonResults);
+		optimization.popPipeliningFactor();
+
+		DFEVar shouldOutput = match;
+		debug.simPrintf(isStart, "match = %d\n", match);
+
+
+		DFEStruct outputStruct = outputLinkType.newInstance(this);
+		outputStruct["sof"] <== som;
+		outputStruct["eof"] <== eom;
+		outputStruct["data"] <== alignedData;
+		outputStruct["mod"] <== constant.var(dfeUInt(3), 0); // Shouldn't matter, as we know the exact message size (multiple of ELT size)
+
+		DFEVar outputNow = valid & shouldOutput & ~isPadding;
+
+		io.output(OUTPUT_MY_OUTPUT, outputLinkType, outputNow) <== outputStruct;
+	}
+
+	List<DFEVar> fanValue(DFEVar v, int fanSize, boolean pipeline) {
+		List<DFEVar> fan = new ArrayList<DFEVar>(fanSize);
+
+		for (int i=0; i < fanSize; i++) {
+			fan.add(pipeline ? optimization.pipeline(v) : v);
+		}
+
+		return fan;
+	}
+
+	private List<DFEVar> fanTree(List<DFEVar> t, int size, int fanSize) {
+		if (size < fanSize)	return t;
+
+		List<DFEVar> f = new ArrayList<DFEVar>();
+		for (DFEVar v : t) {
+			f.addAll(fanValue(v, fanSize, size > fanSize));
+		}
+
+		return fanTree(f, size / fanSize, fanSize);
+	}
+
+	private List<DFEVar> buildSearchFieldTree(DFEVar searchField, int size, int fanSize) {
+		List<DFEVar> f = new ArrayList<DFEVar>();
+		f.add(searchField);
+
+		return fanTree(f, size, fanSize);
+	}
+
+	public DFEVar realign(DFEVar data, DFEVar alignment) {
+		DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), 8);
+		DFEVector<DFEVar> array = vecType.newInstance(this);
+		for (int i=0; i < 8; i++) {
+			array.get(i) <== data.slice(i*8, 8);
+		}
+
+		DFEVar shiftRightAmount = alignment;
+		DFEVar shiftLeftAmount = (constant.var(dfeUInt(4), 8) - shiftRightAmount.cast(dfeUInt(4))).cast(dfeUInt(3));
+
+		/*
+		 * Due to alignment, a field my cross in to the next word.
+		 * for example, the 3-byte field F:
+		 *
+		 * 0 1 2 3 4 5 6 7
+		 * x x x x x x F F
+		 * F y y y y y y y
+		 *
+		 * To align, we shift the first word by "alignment" = 6
+		 * 0 1 2 3 4 5 6 7
+		 * F F 0 0 0 0 0 0
+		 * The second word should be shifted by 8 - alignment = 2
+		 * 0 0 F y y y y y
+		 *
+		 * combined:
+		 * F F F y y y y y
+		 *
+		 */
+		DFEVector<DFEVar> shiftedLeft = array.shiftElementsLeft(shiftLeftAmount);
+		DFEVector<DFEVar> shiftedRight = array.shiftElementsRight(shiftRightAmount);
+		DFEVector<DFEVar> combined = alignment === 0 ? array : (stream.offset(shiftedLeft, 1) | shiftedRight);
+
+		return combined.pack();
+	}
+
+	public DFEVar BeToLe(DFEVar v) {
+		int size = v.getType().getTotalBits()/8;
+		DFEVar output = null;
+		for(int i = 0; i < size; i++) {
+			DFEVar b = v.slice(i*8, 8);
+			if (i == 0) output = b;
+			else output = output # b;
+		}
+		return output;
+	}
+}
+

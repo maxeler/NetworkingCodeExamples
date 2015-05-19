@@ -1,0 +1,244 @@
+package com.maxeler.examples.signExtender;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxcompiler.v2.utils.Bits;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.networking.v1.framed_kernels.ByteOrder;
+import com.maxeler.networking.v1.framed_kernels.FrameData;
+import com.maxeler.networking.v1.framed_kernels.FrameFormat;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
+import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
+
+public class SignExtKernel extends ThroughputFramedKernel {
+	public static final String INPUT_INTERNAL = "internal";
+	public static final String OUTPUT_MY_OUTPUT = "myOutput";
+
+	public static final int WORD_SIZE_BYTES = 8;
+
+	public static final OutputLinkType outputLinkType = new OutputLinkType();
+	public static class OutputLinkType extends DFEStructType implements FramedLinkType {
+		public OutputLinkType() {
+			super(
+					sft("data", dfeRawBits(64)),
+					sft("sof", dfeBool()),
+					sft("eof", dfeBool()),
+					sft("mod", dfeUInt(3))
+			);
+		}
+		@Override public String getEOF() { return "eof"; }
+		@Override public String getSOF() { return "sof"; }
+		@Override public String getData() {	return "data"; }
+		@Override public String getMod() { return "mod";	}
+		@Override public DFEStructType getDFEStructType() {	return this; }
+	}
+
+
+	private static class OutputFormat extends FrameFormat {
+		public OutputFormat() {
+			super(ByteOrder.LITTLE_ENDIAN);
+
+			addField("a", dfeRawBits(64));
+			addField("b", dfeRawBits(64));
+			addField("c", dfeRawBits(32));
+		}
+	}
+
+	SignExtKernel(KernelParameters parameters) {
+		super(parameters);
+
+		UDPOneToOneRXType udpType = new UDPOneToOneRXType();
+		DFEStructType inputType = udpType.getDFEStructType();
+
+//		setMinimumInterFrameGap(3);
+
+		NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_INTERNAL, inputType,
+				constant.var(true),
+				inputType.getPositionForField(udpType.getEOF()),
+				DelimiterMode.EOF_POSITION,
+//				Flushing.interFrameGapNone,
+				3,
+				NonBlockingMode.NO_TRICKLING);
+
+		DFEStruct inputStruct = theInput.data;
+		DFEVar valid = theInput.valid;
+
+		/*
+		 * Input is:
+		 * struct Something {
+   		 * 	uint8_t aSz : 3;
+   		 *	uint8_t bSz : 3;
+   		 *	uint8_t cSz : 2;
+   		 *	char data[];
+		 * };
+		 */
+
+		DFEVar data = inputStruct.get(udpType.getData());
+		DFEVar som = (DFEVar)inputStruct.get(udpType.getSOF()) & valid;
+//		DFEVar eom = (DFEVar)inputStruct.get(udpType.getEOF()) & valid;
+
+		DFEVar aSz = Reductions.streamHold(data.slice(0, 3).cast(dfeUInt(3)), som);
+		DFEVar bSz = Reductions.streamHold(data.slice(3, 3).cast(dfeUInt(3)), som);
+		DFEVar cSz = Reductions.streamHold(data.slice(6, 2).cast(dfeUInt(2)), som);
+
+		debug.simPrintf(som, "Kernel got: aSz = %d, bSz = %d, cSz = %d\n", aSz, bSz, cSz);
+
+
+		/*
+		 * Word size is 8 bytes.
+		 *
+		 * Assuming little endian
+		 *
+		 * Construct super word, 20 bytes:
+		 * 7 data bytes from 1st cycle (current cycle)
+		 * 8 data bytes from 2nd cycle
+		 * 5 data bytes from 3rd cycle
+		 *
+		 */
+
+		DFEVar superWord = extractBytes(stream.offset(data, 2), 0, 5) # extractBytes(stream.offset(data, 1), 0, 8)  # extractBytes(data, 1, 7);
+
+
+		/*
+		 * Since aSz is 3 bits, the largest field can be 8 bytes
+		 */
+		int fieldAMaxSize =  1 << aSz.getType().getTotalBits();
+		DFEVar fieldA = extractBytes(superWord, 0, fieldAMaxSize);
+		// Apply Sign extension mask
+		fieldA = signExtend(aSz, fieldA);
+		// Hold the value of field A, otherwise it would change on the next cycle, since the pipeline is correct only on the first word
+		fieldA = Reductions.streamHold(fieldA, som);
+
+
+		// Shift the super-word and repeat above steps
+		int fieldBMaxSize =  1 << bSz.getType().getTotalBits();
+		DFEVar bSuperWord = byteShiftRight(superWord, toActualSize(aSz));
+		DFEVar fieldB = extractBytes(bSuperWord, 0, fieldBMaxSize);
+		fieldB = signExtend(bSz, fieldB);
+		fieldB = Reductions.streamHold(fieldB, som);
+
+		// One more time for field C
+		int fieldCMaxSize =  1 << cSz.getType().getTotalBits();
+		DFEVar cSuperWord = byteShiftRight(superWord, sum(toActualSize(aSz), toActualSize(bSz)));
+		DFEVar fieldC = extractBytes(cSuperWord, 0, fieldCMaxSize);
+		fieldC = signExtend(cSz, fieldC);
+		fieldC = Reductions.streamHold(fieldC, som);
+
+
+		OutputFormat outputFormat = new OutputFormat();
+		FrameData<OutputFormat> frameOut = new FrameData<OutputFormat>(
+				this,
+				outputFormat,
+				outputLinkType
+		);
+
+		frameOut["a"] <== fieldA;
+		frameOut["b"] <== fieldB;
+		frameOut["c"] <== fieldC;
+
+		io.frameOutput(OUTPUT_MY_OUTPUT, frameOut, constant.var(true), som);
+	}
+
+	private DFEVar toActualSize(DFEVar v) {
+		int maxFieldSize = 1 << v.getType().getTotalBits();
+		DFEType fieldSizeType = dfeUInt(MathUtils.bitsToRepresent(maxFieldSize));
+		v = v === 0 ? constant.var(fieldSizeType, maxFieldSize) : v.cast(fieldSizeType);
+
+		return v;
+	}
+
+	private DFEVar sum(DFEVar a, DFEVar b) {
+		// Find the largest type
+		int aWidth = a.getType().getTotalBits();
+		int bWidth = b.getType().getTotalBits();
+
+		int maxWidth = Math.max(aWidth, bWidth) + 1;
+
+		a = a.cast(dfeUInt(maxWidth));
+		b = b.cast(dfeUInt(maxWidth));
+
+		return a + b;
+	}
+
+	private DFEVar signExtend(DFEVar sz, DFEVar v) {
+		int numSignBits = v.getType().getTotalBits() / 8;
+		int maskSizeBytes = 1 << sz.getType().getTotalBits();
+
+		if (numSignBits != maskSizeBytes) {
+			throw new RuntimeException("Number of sign bits must be equal to the byte size of the mask!");
+		}
+
+		List<DFEVar> signBits = new ArrayList<DFEVar>(numSignBits);
+
+		// Extract all possible sign bits
+		for (int i=0; i < numSignBits; i++) {
+			signBits.add(i == 0 ? v.slice(numSignBits * 8 - 1) : v.slice(i* 8 - 1));
+		}
+
+		// Get the actual
+		DFEVar theSignBit = control.mux(sz, signBits);
+
+
+
+		// Create a list of all possible masks for this size
+		List<DFEVar> masks = new ArrayList<DFEVar>(maskSizeBytes);
+
+		// Assuming size = 0 means all bytes are valid
+		for (int i=0; i < maskSizeBytes; i++) {
+
+			DFEVar ones = constant.var(dfeRawBits((maskSizeBytes - i) * 8), Bits.allOnes((maskSizeBytes - i)*8));
+
+			if (i > 0) {
+				DFEVar zeros = constant.var(dfeRawBits(i * 8), Bits.allZeros(i*8));
+				masks.add(ones # zeros);
+			} else {
+				// We assume 0 means full field size!
+				DFEVar zeros = constant.var(dfeRawBits(maskSizeBytes * 8), Bits.allZeros(maskSizeBytes*8));
+				masks.add(zeros);
+			}
+		}
+
+		// Select the right mask
+		DFEVar signmask = control.mux(sz, masks);
+		DFEVar mask = ~signmask;
+
+		// Clean up the word
+		v = v & mask;
+
+		// Extend the sign bit
+		v = v | (theSignBit ? signmask : 0);
+
+		return v;
+	}
+
+	private DFEVar extractBytes(DFEVar v, int baseIndex, int howMany) {
+		return v.slice(baseIndex * 8, howMany * 8); // Slice is a bit operation
+	}
+
+	private DFEVar byteShiftRight(DFEVar v, DFEVar shiftAmount) {
+		int vecSize = v.getType().getTotalBits() / 8;
+		DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), vecSize);
+		DFEVector<DFEVar> array = vecType.newInstance(this);
+		for (int i=0; i < vecSize; i++) {
+			array.get(i) <== v.slice(i*8, 8);
+		}
+
+		shiftAmount = shiftAmount.cast(dfeUInt(MathUtils.bitsToAddress(vecSize)));
+
+		return array.shiftElementsRight(shiftAmount).pack();
+	}
+}
+

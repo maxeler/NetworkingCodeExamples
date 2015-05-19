@@ -1,0 +1,60 @@
+package com.maxeler.examples.FIFOGateway;
+
+import com.maxeler.examples.FIFOGateway.FIFOGatewayTypes.OutboundHeaderType;
+import com.maxeler.examples.FIFOGateway.FIFOGatewayTypes.SimpleLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.statemachines.Flushing;
+import com.maxeler.networking.types.TCPManyConnectionsTypes.TxDataType;
+
+public class Outbound extends Kernel {
+
+	public static final String INPUT_FROM_CPU = "fromCPU";
+	public static final String OUTPUT_TO_TCP = "toTCP";
+
+	public Outbound(KernelParameters parameters, FIFOGatewayTypes types) {
+		super(parameters);
+
+		flush.disabled();
+
+		SimpleLinkType inputLinkType = types.simpleLinkType;
+
+		NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(INPUT_FROM_CPU, inputLinkType,
+				constant.var(true),
+				inputLinkType.getPositionForField(inputLinkType.getEOF()),
+				DelimiterMode.EOF_POSITION,
+				Flushing.interFrameGapNone,
+				NonBlockingMode.NO_TRICKLING);
+
+
+		DFEStruct input = fromCPU.data;
+		DFEVar valid = fromCPU.valid;
+
+		DFEVar eof = input[inputLinkType.getEOF()];
+		DFEVar sof = input[inputLinkType.getSOF()];
+		DFEVar mod = input[inputLinkType.getMod()];
+		DFEVar data = input[inputLinkType.getData()];
+		DFEVar start = valid & (DFEVar)sof;
+
+		DFEVar socket_num = Reductions.streamHold((DFEVar)types.outboundHeaderType.unpack(data).get(OutboundHeaderType.SOCKET_NUM), start);
+
+		com.maxeler.networking.types.TCPManyConnectionsTypes.TxDataType txType = types.tcpTypes.getTxDataType();
+
+		System.out.printf("TX Type width = %d\n", txType.getTotalBits());
+		DFEStruct tx = txType.newInstance(this);
+
+		tx[TxDataType.SOCKET] <== socket_num.cast(txType.getTypeForField(TxDataType.SOCKET));
+		tx[TxDataType.SOF] <== stream.offset(sof, -1);
+		tx[TxDataType.EOF] <== eof;
+		tx[TxDataType.DATA] <== data;
+		tx[TxDataType.MOD] <== mod;
+
+		io.output(OUTPUT_TO_TCP, txType, valid & ~sof) <== tx;
+	}
+}

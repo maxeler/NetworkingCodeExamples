@@ -1,0 +1,13 @@
+package com.maxeler.examples.FIFOGateway.protocol;
+
+import com.maxeler.maxjlibs.network.TCPFramerSM;
+import com.maxeler.maxjlibs.network.proto.FramerProtocolSpec;
+import com.maxeler.maxjlibs.network.proto.ProtoSpecFactory;
+
+public class BinProtoSpecFactory implements ProtoSpecFactory {
+	@Override
+	public FramerProtocolSpec create(TCPFramerSM owner) {
+		return new BinProtoSpec(owner);
+	}
+
+}

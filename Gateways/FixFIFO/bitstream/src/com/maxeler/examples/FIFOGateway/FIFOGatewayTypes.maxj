@@ -1,0 +1,91 @@
+package com.maxeler.examples.FIFOGateway;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+import com.maxeler.maxjlibs.network.TCPFramerConstants.FramerErrorCodes;
+import com.maxeler.maxjlibs.network.TCPFramerSM.FramerStates;
+import com.maxeler.maxjlibs.network.TCPFramerTypes.TCPFramerLinkType;
+import com.maxeler.maxjlibs.network.TCPInterfaceTypes;
+import com.maxeler.networking.types.TCPRawTypes;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
+
+public class FIFOGatewayTypes {
+
+	public final TCPRawTypes tcpTypes;
+	public final TCPFramerLinkType fixFramerLinkType;
+	public final SimpleLinkType simpleLinkType = new SimpleLinkType();
+	public final InboundHeaderType inboundHeaderType = new InboundHeaderType();
+	public final OutboundHeaderType outboundHeaderType = new OutboundHeaderType();
+
+	public FIFOGatewayTypes(MaxTCPVersion tcpVersion) {
+		this.tcpTypes = new TCPRawTypes(tcpVersion);
+		fixFramerLinkType = new TCPFramerLinkType(tcpTypes);
+	}
+
+	public static class SimpleLinkType extends DFEStructType implements FramedLinkType {
+		public static final String DATA = "data";
+		public static final String SOF = "sof";
+		public static final String EOF = "eof";
+		public static final String MOD = "mod";
+
+		public SimpleLinkType() {
+			super(
+					sft(DATA, DFETypeFactory.dfeRawBits(64)),
+					sft(SOF, DFETypeFactory.dfeBool()),
+					sft(EOF, DFETypeFactory.dfeBool()),
+					sft(MOD, DFETypeFactory.dfeUInt(3))
+			);
+		}
+		@Override public String getEOF() { return EOF; }
+		@Override public String getSOF() { return SOF; }
+		@Override public String getData() {	return DATA; }
+		@Override public String getMod() { return MOD;	}
+		@Override public DFEStructType getDFEStructType() {	return this; }
+	}
+
+	public static class InboundHeaderType extends DFEStructType {
+		public static final String SOCKET_NUM = "socket_num";
+		public static final String CONTAINS_DATA = "containsData";
+		public static final String CONNECTION_STATE_VALID = "connectionStateValid";
+		public static final String CONNECTION_STATE = "connectionState";
+		public static final String ERROR_CODE = "errorCode";
+		public static final String CURRENT_STATE = "currentState";
+		public static final String LEVEL = "level";
+		public static final String PROTOCOL_ID = "protocolID";
+		public static final String PADDING1 = "padding";
+		public static final String PADDING14 = "padding14";
+
+		public InboundHeaderType() {
+			super(
+					sft(SOCKET_NUM, DFETypeFactory.dfeUInt(16)),
+					sft(ERROR_CODE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(FramerErrorCodes.values().length))),
+					sft(CONNECTION_STATE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(TCPInterfaceTypes.ConnectionStates.values().length))),
+					sft(CONNECTION_STATE_VALID, DFETypeFactory.dfeBool()),
+					sft(CURRENT_STATE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(FramerStates.values().length))),
+					sft(CONTAINS_DATA, DFETypeFactory.dfeBool()),
+					sft(PROTOCOL_ID, DFETypeFactory.dfeBool()),
+					sft(PADDING1, DFETypeFactory.dfeBool()),
+					sft(LEVEL, DFETypeFactory.dfeInt(MathUtils.bitsToRepresentSigned(TCPInterfaceTypes.maxWindowMemorySizeBytes))),
+					sft(PADDING14, DFETypeFactory.dfeUInt(14))
+				);
+		}
+	}
+
+	public static class OutboundHeaderType extends DFEStructType {
+		public static final String SOCKET_NUM = "socket_num";
+		public static final String PADDING = "padding";
+
+		public OutboundHeaderType() {
+			super(
+					sft(SOCKET_NUM, DFETypeFactory.dfeUInt(16)),
+					sft(PADDING, DFETypeFactory.dfeUInt(48)));
+		}
+	}
+
+	public static void main(String[] args) {
+		StructUtils.printDFEStructType(new FIFOGatewayTypes(MaxTCPVersion.TCP_1KC_V2).inboundHeaderType);
+	}
+}
