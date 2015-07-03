@@ -96,6 +96,5 @@ int main(int argc, char *argv[]) {
 	send_frames(mySocket);
 
 	printf("Sender finished\n");
-	getchar();
 }
 
