@@ -25,7 +25,7 @@ include $(MAXCOMPILERDIR)/lib/Makefile.include
 
 CFLAGS += -std=gnu99 -Wall -Werror -ggdb -rdynamic -DDESIGN_NAME=$(DESIGN_NAME)
 
-all: $(NAME) sender
+all: $(NAME)
 
 %.o: %.max
 	-@echo $<" -> "$@
@@ -35,15 +35,6 @@ all: $(NAME) sender
 	-@echo "[gcc] " $*.c" -> "$@
 	$(QUIET)gcc $(MAXCOMPILER_INC) $(CFLAGS) -c -o $@ $*.c
 	
-
-sender: sender.o
-	gcc sender.o -o sender 
-
-
-sender.o: sender.c
-	gcc sender.c -O2 -std=gnu99 -c -o sender.o
-
-
 $(NAME): $(C_OBJS) $(MAXFILE)
 	-@echo "Linking "$@
 	gcc -o $(NAME) $(MAX_OBJS) $(C_OBJS) -rdynamic $(MAXCOMPILER_LIBS)
