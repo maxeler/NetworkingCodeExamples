@@ -4,19 +4,20 @@ An example project, which will receive packets containing 3 signed integer value
 
 The structure of the incoming packet *data* field should be as follows:
 
-* 1 byte
-    * defines the size of the following content
-* n bytes
+* First byte
+    * defines the size of the following content (see table below)
+* Rest of data
     * contains the three values A, B and C (in that order)
     * where n = size of A + size of B + size of C
+    * little endian
 
 Allocation of bits in the first data byte:
 
-Bits  | 7 - 5 | 4 - 2 | 1 - 0
+Bits  | 7 - 6 | 5 - 3 | 2 - 0
 :---- |:-----:|:-----:|:-----:
-Usage | size of A | size of B | size of C
+Usage | size of C | size of B | size of A
 
-These values indicate the sizes in bytes. If any of these sizes are equal to 0, this indicates the maximum possible size for that variable. E.g. for value B, 0x0 would indicate a length of 8 bytes.
+These values indicate the sizes in bytes. If any of these sizes are equal to 0, this indicates the maximum possible size for that variable. E.g. for the size of B, 0x0 would indicate a length of 8 bytes.
 
 The values passed to the CPU should be as follows:
 
