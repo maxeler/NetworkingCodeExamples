@@ -19,8 +19,8 @@ import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.networking.v1.framed_kernels.ByteOrder;
 import com.maxeler.networking.v1.framed_kernels.FrameData;
 import com.maxeler.networking.v1.framed_kernels.FrameFormat;
-import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
 import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
 
 public class SignExtKernel extends ThroughputFramedKernel {
@@ -29,23 +29,7 @@ public class SignExtKernel extends ThroughputFramedKernel {
 
 	public static final int WORD_SIZE_BYTES = 8;
 
-	public static final OutputLinkType outputLinkType = new OutputLinkType();
-	public static class OutputLinkType extends DFEStructType implements FramedLinkType {
-		public OutputLinkType() {
-			super(
-					sft("data", dfeRawBits(64)),
-					sft("sof", dfeBool()),
-					sft("eof", dfeBool()),
-					sft("mod", dfeUInt(3))
-			);
-		}
-		@Override public String getEOF() { return "eof"; }
-		@Override public String getSOF() { return "sof"; }
-		@Override public String getData() {	return "data"; }
-		@Override public String getMod() { return "mod";	}
-		@Override public DFEStructType getDFEStructType() {	return this; }
-	}
-
+	public static final SimpleFramedLinkType outputLinkType = new SimpleFramedLinkType();
 
 	private static class OutputFormat extends FrameFormat {
 		public OutputFormat() {
@@ -76,8 +60,11 @@ public class SignExtKernel extends ThroughputFramedKernel {
 		DFEStruct inputStruct = theInput.data;
 		DFEVar valid = theInput.valid;
 
+		DFEVar data = inputStruct.get(udpType.getData());
+		DFEVar som = (DFEVar)inputStruct.get(udpType.getSOF()) & valid;
+
 		/*
-		 * Input is:
+		 * Input data is:
 		 * struct Something {
    		 * 	uint8_t aSz : 3;
    		 *	uint8_t bSz : 3;
@@ -85,10 +72,6 @@ public class SignExtKernel extends ThroughputFramedKernel {
    		 *	char data[];
 		 * };
 		 */
-
-		DFEVar data = inputStruct.get(udpType.getData());
-		DFEVar som = (DFEVar)inputStruct.get(udpType.getSOF()) & valid;
-//		DFEVar eom = (DFEVar)inputStruct.get(udpType.getEOF()) & valid;
 
 		DFEVar aSz = Reductions.streamHold(data.slice(0, 3).cast(dfeUInt(3)), som);
 		DFEVar bSz = Reductions.streamHold(data.slice(3, 3).cast(dfeUInt(3)), som);
@@ -111,31 +94,12 @@ public class SignExtKernel extends ThroughputFramedKernel {
 
 		DFEVar superWord = extractBytes(stream.offset(data, 2), 0, 5) # extractBytes(stream.offset(data, 1), 0, 8)  # extractBytes(data, 1, 7);
 
-
-		/*
-		 * Since aSz is 3 bits, the largest field can be 8 bytes
-		 */
-		int fieldAMaxSize =  1 << aSz.getType().getTotalBits();
-		DFEVar fieldA = extractBytes(superWord, 0, fieldAMaxSize);
-		// Apply Sign extension mask
-		fieldA = signExtend(aSz, fieldA);
-		// Hold the value of field A, otherwise it would change on the next cycle, since the pipeline is correct only on the first word
-		fieldA = Reductions.streamHold(fieldA, som);
-
-
-		// Shift the super-word and repeat above steps
-		int fieldBMaxSize =  1 << bSz.getType().getTotalBits();
+		DFEVar aSuperWord = superWord;
 		DFEVar bSuperWord = byteShiftRight(superWord, toActualSize(aSz));
-		DFEVar fieldB = extractBytes(bSuperWord, 0, fieldBMaxSize);
-		fieldB = signExtend(bSz, fieldB);
-		fieldB = Reductions.streamHold(fieldB, som);
-
-		// One more time for field C
-		int fieldCMaxSize =  1 << cSz.getType().getTotalBits();
 		DFEVar cSuperWord = byteShiftRight(superWord, sum(toActualSize(aSz), toActualSize(bSz)));
-		DFEVar fieldC = extractBytes(cSuperWord, 0, fieldCMaxSize);
-		fieldC = signExtend(cSz, fieldC);
-		fieldC = Reductions.streamHold(fieldC, som);
+		DFEVar fieldA = extractValue(aSuperWord, aSz, som);
+		DFEVar fieldB = extractValue(bSuperWord, bSz, som);
+		DFEVar fieldC = extractValue(cSuperWord, cSz, som);
 
 
 		OutputFormat outputFormat = new OutputFormat();
@@ -151,6 +115,23 @@ public class SignExtKernel extends ThroughputFramedKernel {
 
 		io.frameOutput(OUTPUT_MY_OUTPUT, frameOut, constant.var(true), som);
 	}
+
+	private DFEVar extractValue(DFEVar input, DFEVar size, DFEVar start) {
+
+		int maxSize = 1 << size.getType().getTotalBits();
+
+		// Extract bytes
+		DFEVar field = extractBytes(input, 0, maxSize);
+
+		// Apply Sign extension mask
+		field = signExtend(size, field);
+
+		// Hold the value, otherwise it would change on the next cycle, since the pipeline is correct only on the first word
+		field = Reductions.streamHold(field, start);
+
+		return field;
+	}
+
 
 	private DFEVar toActualSize(DFEVar v) {
 		int maxFieldSize = 1 << v.getType().getTotalBits();
