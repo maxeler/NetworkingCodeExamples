@@ -88,7 +88,7 @@ $ cd ..
 $ cd runtime
 $ ./run.py
 <...>
-Listening on 172.16.50.1 port 1000
+Listening on 172.16.50.1 port 2000
 Waiting for kernel response...
 ```
 
