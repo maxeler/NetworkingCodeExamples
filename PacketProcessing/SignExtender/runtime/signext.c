@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 	inet_aton(argv[2], &remote_ip);
 	struct in_addr netmask;
 	inet_aton("255.255.255.0", &netmask);
-	const int port = 1000;
+	const int port = 2000;
 
 //	struct in_addr mcastaddr;
 //	inet_aton("224.0.0.1", &mcastaddr);

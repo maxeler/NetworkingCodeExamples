@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
 	struct in_addr remote_ip;
 	inet_aton("172.16.50.1", &remote_ip);
 
-	int mySocket = create_socket(&remote_ip, 1000);
+	int mySocket = create_socket(&remote_ip, 2000);
 
 	send_frames(mySocket);
 
