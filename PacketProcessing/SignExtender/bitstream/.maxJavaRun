@@ -1,0 +1,14 @@
+#!/bin/bash
+
+export APPDIR=.
+export MAXJLIBDIR=/home/mhaslehurst/Workspaces/2014.1.1-MaxCompiler-MaxGenFD/maxjlibs
+export MAXEDADIR=/home/mhaslehurst/Workspaces/2014.1.1-MaxCompiler-MaxGenFD/maxeda
+export MAXAPPPKG=com.maxeler.examples.signExtender
+export MAXJVMMEM=12288
+#export JUNIT=/network-raid/opt/maxcompiler-2012.1.1/lib/MaxIDE/plugins/org.junit_4.8.1.v4_8_1_v20100427-1100/junit.jar
+#export HAMCREST=/network-raid/opt/maxcompiler-2012.1.1/lib/MaxIDE/plugins/org.hamcrest.core_1.1.0.v20090501071000.jar
+export MAXCOMPILERJCP=$MAXEDADIR/bin:$MAXJLIBDIR/bin:$JUNIT:$HAMCREST
+export MAXAPPJCP=$APPDIR/bin
+export MAXSOURCEDIRS=$APPDIR/src:$MAXEDADIR/src:$MAXJLIBDIR/src
+
+export MAXMPPRMAILTO=$USER@maxeler.com
