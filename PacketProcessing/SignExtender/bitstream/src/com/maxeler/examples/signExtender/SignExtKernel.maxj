@@ -35,12 +35,11 @@ public class SignExtKernel extends ThroughputFramedKernel {
 	SignExtKernel(KernelParameters parameters) {
 		super(parameters);
 
-		UDPOneToOneRXType udpType = new UDPOneToOneRXType();
-		DFEStructType inputType = udpType.getDFEStructType();
+		DFEStructType inputType = new UDPOneToOneRXType().getDFEStructType();
 
 		NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_UDP, inputType,
 				constant.var(true),
-				inputType.getPositionForField(udpType.getEOF()),
+				inputType.getPositionForField(UDPOneToOneRXType.EOF),
 				DelimiterMode.EOF_POSITION,
 				3,
 				NonBlockingMode.NO_TRICKLING);

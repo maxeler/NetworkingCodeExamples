@@ -26,8 +26,6 @@ public class SignExtManager extends NetworkManager {
 		pushDefaultClock(netClk);
 
 		KernelConfiguration myKernelConfig = new KernelConfiguration(getCurrentKernelConfig());
-//		myKernelConfig.debug.setEnableLatencyAnnotation(true);
-//		myKernelConfig.debug.setEnableLongestPathAnnotation(SignExtKernel.INPUT_INTERNAL, SignExtKernel.OUTPUT_MY_OUTPUT);
 		KernelBlock kernel = addKernel(new SignExtKernel(makeKernelParameters("exampleKernel", myKernelConfig)));
 		kernel.getInput(SignExtKernel.INPUT_UDP) <== frameIn.getReceiveStream();
 		addFramedStreamToCPU("toCPU", SignExtKernel.outputLinkType) <== kernel.getOutput(SignExtKernel.OUTPUT_VALUES);
