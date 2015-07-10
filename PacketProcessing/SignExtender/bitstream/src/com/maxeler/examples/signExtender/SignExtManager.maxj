@@ -15,27 +15,27 @@ import com.maxeler.networking.v1.managers.netlib.UDPStream;
 
 public class SignExtManager extends NetworkManager {
 
-	public SignExtManager(SignExtEngineParameters params) {
+	public SignExtManager(final SignExtEngineParameters params) {
 		super(params.getEngineParams());
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
 
-		UDPStream frameIn = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.DropBadFrames);
+		final UDPStream frameIn = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.DropBadFrames);
 
-		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		final ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
 
-		KernelConfiguration myKernelConfig = new KernelConfiguration(getCurrentKernelConfig());
-		KernelBlock kernel = addKernel(new SignExtKernel(makeKernelParameters("exampleKernel", myKernelConfig)));
+		final KernelConfiguration myKernelConfig = new KernelConfiguration(getCurrentKernelConfig());
+		final KernelBlock kernel = addKernel(new SignExtKernel(makeKernelParameters("exampleKernel", myKernelConfig)));
 		kernel.getInput(SignExtKernel.INPUT_UDP) <== frameIn.getReceiveStream();
 		addFramedStreamToCPU("toCPU", SignExtKernel.outputLinkType) <== kernel.getOutput(SignExtKernel.OUTPUT_VALUES);
 	}
 
-	public static void main(String[] args) {
-		SignExtEngineParameters params = new SignExtEngineParameters(args);
-		SignExtManager manager = new SignExtManager(params);
+	public static void main(final String[] args) {
+		final SignExtEngineParameters params = new SignExtEngineParameters(args);
+		final SignExtManager manager = new SignExtManager(params);
 
-		BuildConfig buildConfig = manager.getBuildConfig();
+		final BuildConfig buildConfig = manager.getBuildConfig();
 		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		buildConfig.setMPPRParallelism(params.getMPPRThreads());
 		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());

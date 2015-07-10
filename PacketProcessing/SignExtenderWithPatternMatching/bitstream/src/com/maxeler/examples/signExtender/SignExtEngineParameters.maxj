@@ -8,7 +8,7 @@ import com.maxeler.maxcompiler.v2.managers.DFEModel;
 
 public class SignExtEngineParameters extends ApplicationParameters {
 
-	public SignExtEngineParameters(String[] args) {
+	public SignExtEngineParameters(final String[] args) {
 		super(args);
 	}
 

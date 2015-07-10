@@ -22,8 +22,8 @@ public class IncomingData extends KernelLib {
 	public IncomingData(final KernelLib owner, final DFEStruct frames, final DFEVar valid) {
 		super(owner);
 
-		DFEVar data = frames[UDPOneToOneRXType.DATA];
-		DFEVar sof = frames[UDPOneToOneRXType.SOF];
+		final DFEVar data = frames[UDPOneToOneRXType.DATA];
+		final DFEVar sof = frames[UDPOneToOneRXType.SOF];
 
 		/*
 		 * Input data is:
@@ -36,9 +36,9 @@ public class IncomingData extends KernelLib {
 		 * };
 		 */
 
-		DFEVar aSz = Reductions.streamHold(data.slice(0, 3).cast(dfeUInt(3)), sof);
-		DFEVar bSz = Reductions.streamHold(data.slice(3, 3).cast(dfeUInt(3)), sof);
-		DFEVar cSz = Reductions.streamHold(data.slice(6, 2).cast(dfeUInt(2)), sof);
+		final DFEVar aSz = Reductions.streamHold(data.slice(0, 3).cast(dfeUInt(3)), sof);
+		final DFEVar bSz = Reductions.streamHold(data.slice(3, 3).cast(dfeUInt(3)), sof);
+		final DFEVar cSz = Reductions.streamHold(data.slice(6, 2).cast(dfeUInt(2)), sof);
 
 		debug.simPrintf(sof & valid, "Kernel got: aSz = %d, bSz = %d, cSz = %d\n", aSz, bSz, cSz);
 
@@ -55,24 +55,23 @@ public class IncomingData extends KernelLib {
 		 *
 		 */
 
-		DFEVar superWord = extractBytes(stream.offset(data, 3), 0, 5) # extractBytes(stream.offset(data, 2), 0, 8) # extractBytes(stream.offset(data, 1), 0, 8) # extractBytes(data, 1, 7);
+		final DFEVar superWord = extractBytes(stream.offset(data, 3), 0, 5) # extractBytes(stream.offset(data, 2), 0, 8) # extractBytes(stream.offset(data, 1), 0, 8) # extractBytes(data, 1, 7);
 
-		DFEVar bOffset = toActualSize(aSz);
-		DFEVar cOffset = sum(bOffset, toActualSize(bSz));
-		DFEVar textOffset = sum(cOffset, toActualSize(cSz));
+		final DFEVar bOffset = toActualSize(aSz);
+		final DFEVar cOffset = sum(bOffset, toActualSize(bSz));
 
-		DFEVar aSuperWord = superWord;
-		DFEVar bSuperWord = byteShiftRight(superWord, bOffset);
-		DFEVar cSuperWord = byteShiftRight(superWord, cOffset);
+		final DFEVar aSuperWord = superWord;
+		final DFEVar bSuperWord = byteShiftRight(superWord, bOffset);
+		final DFEVar cSuperWord = byteShiftRight(superWord, cOffset);
 
 		this.fieldA = extractValue(aSuperWord, aSz, sof);
 		this.fieldB = extractValue(bSuperWord, bSz, sof);
 		this.fieldC = extractValue(cSuperWord, cSz, sof);
 	}
 
-	private DFEVar extractValue(DFEVar input, DFEVar targetSize, DFEVar start) {
+	private DFEVar extractValue(final DFEVar input, final DFEVar targetSize, final DFEVar start) {
 
-		int maxSize = 1 << targetSize.getType().getTotalBits();
+		final int maxSize = 1 << targetSize.getType().getTotalBits();
 
 		// Extract bytes
 		DFEVar field = extractBytes(input, 0, maxSize);
@@ -87,8 +86,8 @@ public class IncomingData extends KernelLib {
 	}
 
 	private DFEVar toActualSize(DFEVar v) {
-		int maxFieldSize = 1 << v.getType().getTotalBits();
-		DFEType fieldSizeType = dfeUInt(MathUtils.bitsToRepresent(maxFieldSize));
+		final int maxFieldSize = 1 << v.getType().getTotalBits();
+		final DFEType fieldSizeType = dfeUInt(MathUtils.bitsToRepresent(maxFieldSize));
 		v = v === 0 ? constant.var(fieldSizeType, maxFieldSize) : v.cast(fieldSizeType);
 
 		return v;
@@ -96,10 +95,10 @@ public class IncomingData extends KernelLib {
 
 	private DFEVar sum(DFEVar a, DFEVar b) {
 		// Find the largest type
-		int aWidth = a.getType().getTotalBits();
-		int bWidth = b.getType().getTotalBits();
+		final int aWidth = a.getType().getTotalBits();
+		final int bWidth = b.getType().getTotalBits();
 
-		int maxWidth = Math.max(aWidth, bWidth) + 1;
+		final int maxWidth = Math.max(aWidth, bWidth) + 1;
 
 		a = a.cast(dfeUInt(maxWidth));
 		b = b.cast(dfeUInt(maxWidth));
@@ -107,15 +106,15 @@ public class IncomingData extends KernelLib {
 		return a + b;
 	}
 
-	private DFEVar signExtend(DFEVar sz, DFEVar v) {
-		int numSignBits = v.getType().getTotalBits() / 8;
-		int maskSizeBytes = 1 << sz.getType().getTotalBits();
+	private DFEVar signExtend(final DFEVar sz, DFEVar v) {
+		final int numSignBits = v.getType().getTotalBits() / 8;
+		final int maskSizeBytes = 1 << sz.getType().getTotalBits();
 
 		if (numSignBits != maskSizeBytes) {
 			throw new RuntimeException("Number of sign bits must be equal to the byte size of the mask!");
 		}
 
-		List<DFEVar> signBits = new ArrayList<DFEVar>(numSignBits);
+		final List<DFEVar> signBits = new ArrayList<DFEVar>(numSignBits);
 
 		// Extract all possible sign bits
 		for (int i=0; i < numSignBits; i++) {
@@ -123,29 +122,29 @@ public class IncomingData extends KernelLib {
 		}
 
 		// Get the actual
-		DFEVar theSignBit = control.mux(sz, signBits);
+		final DFEVar theSignBit = control.mux(sz, signBits);
 
 		// Create a list of all possible masks for this size
-		List<DFEVar> masks = new ArrayList<DFEVar>(maskSizeBytes);
+		final List<DFEVar> masks = new ArrayList<DFEVar>(maskSizeBytes);
 
 		// Assuming size = 0 means all bytes are valid
 		for (int i=0; i < maskSizeBytes; i++) {
 
-			DFEVar ones = constant.var(dfeRawBits((maskSizeBytes - i) * 8), Bits.allOnes((maskSizeBytes - i)*8));
+			final DFEVar ones = constant.var(dfeRawBits((maskSizeBytes - i) * 8), Bits.allOnes((maskSizeBytes - i)*8));
 
 			if (i > 0) {
-				DFEVar zeros = constant.var(dfeRawBits(i * 8), Bits.allZeros(i*8));
+				final DFEVar zeros = constant.var(dfeRawBits(i * 8), Bits.allZeros(i*8));
 				masks.add(ones # zeros);
 			} else {
 				// We assume 0 means full field size!
-				DFEVar zeros = constant.var(dfeRawBits(maskSizeBytes * 8), Bits.allZeros(maskSizeBytes*8));
+				final DFEVar zeros = constant.var(dfeRawBits(maskSizeBytes * 8), Bits.allZeros(maskSizeBytes*8));
 				masks.add(zeros);
 			}
 		}
 
 		// Select the right mask
-		DFEVar signmask = control.mux(sz, masks);
-		DFEVar mask = ~signmask;
+		final DFEVar signmask = control.mux(sz, masks);
+		final DFEVar mask = ~signmask;
 
 		// Clean up the word
 		v = v & mask;
@@ -156,14 +155,14 @@ public class IncomingData extends KernelLib {
 		return v;
 	}
 
-	private DFEVar extractBytes(DFEVar v, int baseIndex, int howMany) {
+	private DFEVar extractBytes(final DFEVar v, final int baseIndex, final int howMany) {
 		return v.slice(baseIndex * 8, howMany * 8); // Slice is a bit operation
 	}
 
-	private DFEVar byteShiftRight(DFEVar v, DFEVar shiftAmount) {
-		int vecSize = v.getType().getTotalBits() / 8;
-		DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), vecSize);
-		DFEVector<DFEVar> array = vecType.newInstance(this);
+	private DFEVar byteShiftRight(final DFEVar v, DFEVar shiftAmount) {
+		final int vecSize = v.getType().getTotalBits() / 8;
+		final DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), vecSize);
+		final DFEVector<DFEVar> array = vecType.newInstance(this);
 		for (int i=0; i < vecSize; i++) {
 			array.get(i) <== v.slice(i*8, 8);
 		}

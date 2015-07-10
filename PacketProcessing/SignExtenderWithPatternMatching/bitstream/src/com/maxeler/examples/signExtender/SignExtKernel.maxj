@@ -36,42 +36,42 @@ public class SignExtKernel extends ThroughputFramedKernel {
 		}
 	}
 
-	SignExtKernel(KernelParameters parameters) {
+	SignExtKernel(final KernelParameters parameters) {
 		super(parameters);
 
-		DFEStructType inputType = new UDPOneToOneRXType().getDFEStructType();
+		final DFEStructType inputType = new UDPOneToOneRXType().getDFEStructType();
 
-		NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_UDP, inputType,
+		final NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_UDP, inputType,
 				constant.var(true),
 				inputType.getPositionForField(UDPOneToOneRXType.EOF),
 				DelimiterMode.EOF_POSITION,
 				3,
 				NonBlockingMode.NO_TRICKLING);
 
-		DFEStruct inputStruct = theInput.data;
-		DFEVar valid = theInput.valid;
+		final DFEStruct inputStruct = theInput.data;
+		final DFEVar valid = theInput.valid;
 
-		DFEVar sof = inputStruct[UDPOneToOneRXType.SOF];
+		final DFEVar sof = inputStruct[UDPOneToOneRXType.SOF];
 
 		// Take data from frames and expose as useful data
-		IncomingData packet = new IncomingData(this, inputStruct, valid, TEXT_SIZE_BYTES);
+		final IncomingData packet = new IncomingData(this, inputStruct, valid, TEXT_SIZE_BYTES);
 
 		// Search for substring in packet text field & decide whether to forward packet or not
-		StringSearchLib searchLib = new StringSearchLib(this, SEARCH_STRING, TEXT_SIZE_BYTES, packet.textField);
-		DFEVar forwardPacket = searchLib.matchFound;
+		final StringSearchLib searchLib = new StringSearchLib(this, SEARCH_STRING, TEXT_SIZE_BYTES, packet.textField);
+		final DFEVar forwardPacket = searchLib.matchFound;
 
 		// Output frame of padded values
-		FrameData<OutputFormat> frameOut = toOutputFrame(packet.fieldA, packet.fieldB, packet.fieldC);
+		final FrameData<OutputFormat> frameOut = toOutputFrame(packet.fieldA, packet.fieldB, packet.fieldC);
 		io.frameOutput(OUTPUT_VALUES, frameOut, constant.var(true), sof & valid);
 
 		// Forward packet
-		DFEStruct passthrough = this.udpRxToTx(inputStruct);
+		final DFEStruct passthrough = this.udpRxToTx(inputStruct);
 		io.output(OUTPUT_UDP, passthrough, passthrough.getType(), valid & forwardPacket);
 	}
 
 	private FrameData<OutputFormat> toOutputFrame(final DFEVar a, final DFEVar b, final DFEVar c) {
-		OutputFormat outputFormat = new OutputFormat();
-		FrameData<OutputFormat> frameOut = new FrameData<OutputFormat>(
+		final OutputFormat outputFormat = new OutputFormat();
+		final FrameData<OutputFormat> frameOut = new FrameData<OutputFormat>(
 				this,
 				outputFormat,
 				outputLinkType
@@ -85,7 +85,7 @@ public class SignExtKernel extends ThroughputFramedKernel {
 	}
 
 	private DFEStruct udpRxToTx(final DFEStruct rx) {
-		DFEStruct tx = new UDPOneToOneTXType().getDFEStructType().newInstance(this);
+		final DFEStruct tx = new UDPOneToOneTXType().getDFEStructType().newInstance(this);
 
 		tx[UDPOneToOneTXType.SOF] <== rx[UDPOneToOneRXType.SOF];
 		tx[UDPOneToOneTXType.DATA] <== rx[UDPOneToOneRXType.DATA];
