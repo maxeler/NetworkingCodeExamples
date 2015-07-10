@@ -145,7 +145,3 @@ $ wireshark top1.pcap &
 ```
 
 You can view only the packets of interest by filtering with the search term `ip.dst==172.16.50.1`.
-
-## Next steps
-
-Try to enhance the application by performing further processing on the DFE. Define a criteria for which matching packets should conditionally be forwarded back out over UDP.
