@@ -42,7 +42,6 @@ public class SignExtKernel extends ThroughputFramedKernel {
 				constant.var(true),
 				inputType.getPositionForField(udpType.getEOF()),
 				DelimiterMode.EOF_POSITION,
-//				Flushing.interFrameGapNone,
 				3,
 				NonBlockingMode.NO_TRICKLING);
 
