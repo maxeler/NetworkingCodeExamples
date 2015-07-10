@@ -1,6 +1,6 @@
 # SignExtenderWithPatternMatching example
 
-This project is an extension of the original [SignExtender](http://networking-gitlab/mhaslehurst/CodeExamples/tree/master/PacketProcessing/SignExtender/) example. That project will not be explained again here.
+This project is an extension of the original `SignExtender` example. That project will not be explained again here.
 
 ## Enhancements
 
@@ -18,20 +18,28 @@ Open the bitstream Java Project.
 
 Open `SignExtManager.maxj` and execute the `main()` function.
 
-Or, from the terminal, run `maxJavaRun SignExtManager` from the `bitstream` directory.
+Or, from the terminal, enter the following:
+
+```
+$ source ../../config.sh
+Setting EXAMPLESDIR to /home/mhaslehurst/Workspaces/networking-examples
+$ cd bitstream
+$ maxJavaRun SignExtManager
+$ cd .. 
+```
 
 ### Runtime
 
 Copy the maxfile output from the Bitstream to the `runtime` directory.
 
 ```
-$ source config.sh
+$ source ../../config.sh
 $ cd runtime
 $ ./build.py
 /network-raid/opt/maxcompiler-2014.1.1/bin/sliccompile SignExt.max SignExt.o
 Processing maxfile for MAX4AB24B_SIM from 'SignExt.max'.
-gcc -std=gnu99 -Wall -Werror -fno-guess-branch-probability -frandom-seed=foo -Wno-unused-variable -Wno-unused-function -fPIC -I /network-raid/opt/maxcompiler-2014.1.1/include/slic -DMAXFILE_INC="/home/mhaslehurst/Workspaces/networking-demo/PacketProcessing/SignExtender/hostcode/SignExt.max" -DSLIC_NO_DESTRUCTORS -c /network-raid/opt/maxcompiler-2014.1.1/src/slicinterface/MaxFileInit.c -o SignExt.o 
-Copying .max file C object into '/home/mhaslehurst/Workspaces/networking-demo/PacketProcessing/SignExtender/hostcode'
+gcc -std=gnu99 -Wall -Werror -fno-guess-branch-probability -frandom-seed=foo -Wno-unused-variable -Wno-unused-function -fPIC -I /network-raid/opt/maxcompiler-2014.1.1/include/slic -DMAXFILE_INC="/home/mhaslehurst/Workspaces/networking-examples/PacketProcessing/SignExtender/hostcode/SignExt.max" -DSLIC_NO_DESTRUCTORS -c /network-raid/opt/maxcompiler-2014.1.1/src/slicinterface/MaxFileInit.c -o SignExt.o 
+Copying .max file C object into '/home/mhaslehurst/Workspaces/networking-examples/PacketProcessing/SignExtender/hostcode'
 gcc -ggdb -O2 -fPIC -std=gnu99 -Wall -Werror -DDESIGN_NAME=SignExt -I. -I/network-raid/opt/maxcompiler-2014.1.1/lib/maxeleros-sim/include -I/network-raid/opt/maxcompiler-2014.1.1/include/slic -c signext.c -o signext.o
 gcc signext.o -L/network-raid/opt/maxcompiler-2014.1.1/lib -L/network-raid/opt/maxcompiler-2014.1.1/lib/maxeleros-sim/lib -lslic -lmaxeleros -lm -lpthread SignExt.o -o signext
 $ cd ..

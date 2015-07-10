@@ -21,15 +21,17 @@ These values indicate the sizes in bytes. If any of these sizes are equal to 0, 
 
 The values passed to the CPU should be as follows:
 
-* A : 64 bit signed int
-* B : 64 bit signed int
-* C : 32 bit signed int
+* A : 64 bit signed integer
+* B : 64 bit signed integer
+* C : 32 bit signed integer
 
 ## Expected behaviour
 
 The following two scenarios are used in this example (values set in `sender.c`).
 
 * Packet 1:
+
+First byte : 0x43
 
 Variable | Size | Value | Expected output to CPU
 :-------:|:----:|:-----:|:---------------------:
@@ -38,6 +40,8 @@ B | 0 | 0x7766554433221100UL | 0x7766554433221100
 C | 1 | 0x80 | 0xffffff80
 
 * Packet 2:
+
+First byte : 0xCE
 
 Variable | Size | Value | Expected output to CPU
 :-------:|:----:|:-----:|:---------------------:
@@ -53,18 +57,28 @@ Open the bitstream Java Project.
 
 Open `SignExtManager.maxj` and execute the `main()` function.
 
+Or, from the terminal, enter the following:
+
+```
+$ source ../../config.sh
+Setting EXAMPLESDIR to /home/mhaslehurst/Workspaces/networking-examples
+$ cd bitstream
+$ maxJavaRun SignExtManager
+$ cd .. 
+```
+
 ### Runtime
 
 Copy the maxfile output from the Bitstream to the `runtime` directory.
 
 ```
-$ source env.sh
+$ source ../../config.sh
 $ cd runtime
 $ ./build.py
 /network-raid/opt/maxcompiler-2014.1.1/bin/sliccompile SignExt.max SignExt.o
 Processing maxfile for MAX4AB24B_SIM from 'SignExt.max'.
-gcc -std=gnu99 -Wall -Werror -fno-guess-branch-probability -frandom-seed=foo -Wno-unused-variable -Wno-unused-function -fPIC -I /network-raid/opt/maxcompiler-2014.1.1/include/slic -DMAXFILE_INC="/home/mhaslehurst/Workspaces/networking-demo/PacketProcessing/SignExtender/hostcode/SignExt.max" -DSLIC_NO_DESTRUCTORS -c /network-raid/opt/maxcompiler-2014.1.1/src/slicinterface/MaxFileInit.c -o SignExt.o 
-Copying .max file C object into '/home/mhaslehurst/Workspaces/networking-demo/PacketProcessing/SignExtender/hostcode'
+gcc -std=gnu99 -Wall -Werror -fno-guess-branch-probability -frandom-seed=foo -Wno-unused-variable -Wno-unused-function -fPIC -I /network-raid/opt/maxcompiler-2014.1.1/include/slic -DMAXFILE_INC="/home/mhaslehurst/Workspaces/networking-examples/PacketProcessing/SignExtender/hostcode/SignExt.max" -DSLIC_NO_DESTRUCTORS -c /network-raid/opt/maxcompiler-2014.1.1/src/slicinterface/MaxFileInit.c -o SignExt.o 
+Copying .max file C object into '/home/mhaslehurst/Workspaces/networking-examples/PacketProcessing/SignExtender/hostcode'
 gcc -ggdb -O2 -fPIC -std=gnu99 -Wall -Werror -DDESIGN_NAME=SignExt -I. -I/network-raid/opt/maxcompiler-2014.1.1/lib/maxeleros-sim/include -I/network-raid/opt/maxcompiler-2014.1.1/include/slic -c signext.c -o signext.o
 gcc signext.o -L/network-raid/opt/maxcompiler-2014.1.1/lib -L/network-raid/opt/maxcompiler-2014.1.1/lib/maxeleros-sim/lib -lslic -lmaxeleros -lm -lpthread SignExt.o -o signext
 $ cd ..
@@ -95,7 +109,7 @@ Waiting for kernel response...
 Then open a new terminal and inject some packets:
 
 ```
-$ sudo ./sender/sender
+$ ./sender/sender
 Sender finished
 ```
 
