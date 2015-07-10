@@ -1,8 +1,0 @@
-*.o
-*.pyc
-*.pcap
-cmdline.c
-cmdline.h
-.metadata*
-.deps
-*.max
