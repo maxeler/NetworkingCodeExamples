@@ -3,6 +3,9 @@ package com.maxeler.examples.tracker;
 import java.util.ArrayList;
 import java.util.List;
 
+import maxpower.kernel.KernelBinaryOp;
+import maxpower.kernel.TreeReduce;
+
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
@@ -11,13 +14,10 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
-import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
-import com.maxeler.maxjlibs.functors.BinaryFunctor;
-import com.maxeler.maxjlibs.reductions.TreeReduce;
 import com.maxeler.networking.statemachines.Flushing;
-import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 
 public class FilteringKernel extends Kernel {
 	public static final String INPUT_MESSAGES = "messages";
@@ -25,24 +25,7 @@ public class FilteringKernel extends Kernel {
 
 	public static final int WORD_SIZE_BYTES = 8;
 
-	public static final OutputLinkType outputLinkType = new OutputLinkType();
-	public static class OutputLinkType extends DFEStructType implements FramedLinkType {
-		public OutputLinkType() {
-			super(
-					sft("data", dfeRawBits(64)),
-					sft("sof", dfeBool()),
-					sft("eof", dfeBool()),
-					sft("mod", dfeUInt(3))
-			);
-		}
-
-		@Override public String getEOF() { return "eof"; }
-		@Override public String getSOF() { return "sof"; }
-		@Override public String getData() {	return "data"; }
-		@Override public String getMod() { return "mod";	}
-		@Override public DFEStructType getDFEStructType() {	return this; }
-	}
-
+	public static final SimpleFramedLinkType outputLinkType = new SimpleFramedLinkType();
 
 	FilteringKernel(KernelParameters parameters) {
 		super(parameters);
@@ -101,14 +84,14 @@ public class FilteringKernel extends Kernel {
 		}
 
 		optimization.pushPipeliningFactor(0);
-		DFEVar match = TreeReduce.reduce(2, true, new BinaryFunctor.Or<DFEVar>(), comparisonResults);
+		DFEVar match = TreeReduce.reduce(2, true, new KernelBinaryOp.Or<DFEVar>(), comparisonResults);
 		optimization.popPipeliningFactor();
 
 		DFEVar shouldOutput = match;
 		debug.simPrintf(isStart, "match = %d\n", match);
 
 
-		DFEStruct outputStruct = outputLinkType.newInstance(this);
+		DFEStruct outputStruct = outputLinkType.getDFEStructType().newInstance(this);
 		outputStruct["sof"] <== som;
 		outputStruct["eof"] <== eom;
 		outputStruct["data"] <== alignedData;
@@ -116,7 +99,7 @@ public class FilteringKernel extends Kernel {
 
 		DFEVar outputNow = valid & shouldOutput & ~isPadding;
 
-		io.output(OUTPUT_MY_OUTPUT, outputLinkType, outputNow) <== outputStruct;
+		io.output(OUTPUT_MY_OUTPUT, outputLinkType.getDFEStructType(), outputNow) <== outputStruct;
 	}
 
 	List<DFEVar> fanValue(DFEVar v, int fanSize, boolean pipeline) {
@@ -180,17 +163,6 @@ public class FilteringKernel extends Kernel {
 		DFEVector<DFEVar> combined = alignment === 0 ? array : (stream.offset(shiftedLeft, 1) | shiftedRight);
 
 		return combined.pack();
-	}
-
-	public DFEVar BeToLe(DFEVar v) {
-		int size = v.getType().getTotalBits()/8;
-		DFEVar output = null;
-		for(int i = 0; i < size; i++) {
-			DFEVar b = v.slice(i*8, 8);
-			if (i == 0) output = b;
-			else output = output # b;
-		}
-		return output;
 	}
 }
 
