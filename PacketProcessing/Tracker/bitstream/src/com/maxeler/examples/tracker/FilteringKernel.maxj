@@ -27,42 +27,42 @@ public class FilteringKernel extends Kernel {
 
 	public static final SimpleFramedLinkType outputLinkType = new SimpleFramedLinkType();
 
-	FilteringKernel(KernelParameters parameters) {
+	FilteringKernel(final KernelParameters parameters) {
 		super(parameters);
 
 		flush.disabled();
 
-		NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_MESSAGES, MessageTracker.outputType,
+		final NonBlockingInput<DFEStruct> theInput = io.nonBlockingInput(INPUT_MESSAGES, MessageTracker.outputType,
 				constant.var(true),
 				MessageTracker.outputType.getPositionForField(MessageTracker.OutputType.EOM),
 				DelimiterMode.EOF_POSITION,
 				Flushing.interFrameGapNone, // Upstream state machine will take care of inter-frame gap
 				NonBlockingMode.NO_TRICKLING);
 
-		DFEStruct inputStruct = theInput.data;
-		DFEVar valid = theInput.valid;
+		final DFEStruct inputStruct = theInput.data;
+		final DFEVar valid = theInput.valid;
 
-		DFEVar data = inputStruct.get(MessageTracker.OutputType.DATA);
-		DFEVar som = inputStruct.get(MessageTracker.OutputType.SOM);
-		DFEVar eom = inputStruct.get(MessageTracker.OutputType.EOM);
-		DFEVar isPadding = inputStruct.get(MessageTracker.OutputType.PADDING);
+		final DFEVar data = inputStruct.get(MessageTracker.OutputType.DATA);
+		final DFEVar som = inputStruct.get(MessageTracker.OutputType.SOM);
+		final DFEVar eom = inputStruct.get(MessageTracker.OutputType.EOM);
+		final DFEVar isPadding = inputStruct.get(MessageTracker.OutputType.PADDING);
 		// Capture alignment value at start of Message
-		DFEVar alignment = Reductions.streamHold((DFEVar)inputStruct.get(MessageTracker.OutputType.ALIGNMENT), valid & som);
-		DFEVar alignedData = realign(data, alignment);
+		final DFEVar alignment = Reductions.streamHold((DFEVar)inputStruct.get(MessageTracker.OutputType.ALIGNMENT), valid & som);
+		final DFEVar alignedData = realign(data, alignment);
 
-		DFEVar alignedData_off0 = stream.offset(alignedData, 0);
-		DFEVar alignedData_off1 = stream.offset(alignedData, 1);
+		final DFEVar alignedData_off0 = stream.offset(alignedData, 0);
+		final DFEVar alignedData_off1 = stream.offset(alignedData, 1);
 
-		DFEVar isStart = valid & som;
+		final DFEVar isStart = valid & som;
 
 		/*
 		 * Extract Field C
 		 */
-		DFEVar field =
+		final DFEVar field =
 			Reductions.streamHold(alignedData_off1.slice(0, 16), isStart) #
 			Reductions.streamHold(alignedData_off0.slice(7*8, 8), isStart);
 
-		DFEVar searchField = field.cast(dfeUInt(24));
+		final DFEVar searchField = field.cast(dfeUInt(24));
 
 		debug.simPrintf(isStart, "alignedData_off0 = %x, alignedData_off1 = %x\n", alignedData_off0, alignedData_off1);
 		debug.simPrintf(isStart, "searchField = %x\n", searchField);
@@ -75,35 +75,35 @@ public class FilteringKernel extends Kernel {
 		 * Build fanout tree:
 		 * sf -> 4 * sf -> 16 *sf -> 64 * sf -> 256 * sf -> 1024 * sf
 		 */
-		List<DFEVar> searchFieldFanout = buildSearchFieldTree(searchField, 1024, 4);
+		final List<DFEVar> searchFieldFanout = buildSearchFieldTree(searchField, 1024, 4);
 
-		DFEVar comparisonResults [] = new DFEVar[1024];
+		final DFEVar comparisonResults [] = new DFEVar[1024];
 		for (int i = 0; i < 1024; ++i) {
-			DFEVar fv = io.scalarInput("filter_" + i, dfeUInt(24));
+			final DFEVar fv = io.scalarInput("filter_" + i, dfeUInt(24));
 			comparisonResults[i] = fv === searchFieldFanout.get(i);
 		}
 
 		optimization.pushPipeliningFactor(0);
-		DFEVar match = TreeReduce.reduce(2, true, new KernelBinaryOp.Or<DFEVar>(), comparisonResults);
+		final DFEVar match = TreeReduce.reduce(2, true, new KernelBinaryOp.Or<DFEVar>(), comparisonResults);
 		optimization.popPipeliningFactor();
 
-		DFEVar shouldOutput = match;
+		final DFEVar shouldOutput = match;
 		debug.simPrintf(isStart, "match = %d\n", match);
 
 
-		DFEStruct outputStruct = outputLinkType.getDFEStructType().newInstance(this);
+		final DFEStruct outputStruct = outputLinkType.getDFEStructType().newInstance(this);
 		outputStruct["sof"] <== som;
 		outputStruct["eof"] <== eom;
 		outputStruct["data"] <== alignedData;
 		outputStruct["mod"] <== constant.var(dfeUInt(3), 0); // Shouldn't matter, as we know the exact message size (multiple of ELT size)
 
-		DFEVar outputNow = valid & shouldOutput & ~isPadding;
+		final DFEVar outputNow = valid & shouldOutput & ~isPadding;
 
 		io.output(OUTPUT_MY_OUTPUT, outputLinkType.getDFEStructType(), outputNow) <== outputStruct;
 	}
 
-	List<DFEVar> fanValue(DFEVar v, int fanSize, boolean pipeline) {
-		List<DFEVar> fan = new ArrayList<DFEVar>(fanSize);
+	List<DFEVar> fanValue(final DFEVar v, final int fanSize, final boolean pipeline) {
+		final List<DFEVar> fan = new ArrayList<DFEVar>(fanSize);
 
 		for (int i=0; i < fanSize; i++) {
 			fan.add(pipeline ? optimization.pipeline(v) : v);
@@ -112,10 +112,10 @@ public class FilteringKernel extends Kernel {
 		return fan;
 	}
 
-	private List<DFEVar> fanTree(List<DFEVar> t, int size, int fanSize) {
+	private List<DFEVar> fanTree(final List<DFEVar> t, final int size, final int fanSize) {
 		if (size < fanSize)	return t;
 
-		List<DFEVar> f = new ArrayList<DFEVar>();
+		final List<DFEVar> f = new ArrayList<DFEVar>();
 		for (DFEVar v : t) {
 			f.addAll(fanValue(v, fanSize, size > fanSize));
 		}
@@ -123,22 +123,22 @@ public class FilteringKernel extends Kernel {
 		return fanTree(f, size / fanSize, fanSize);
 	}
 
-	private List<DFEVar> buildSearchFieldTree(DFEVar searchField, int size, int fanSize) {
-		List<DFEVar> f = new ArrayList<DFEVar>();
+	private List<DFEVar> buildSearchFieldTree(final DFEVar searchField, final int size, final int fanSize) {
+		final List<DFEVar> f = new ArrayList<DFEVar>();
 		f.add(searchField);
 
 		return fanTree(f, size, fanSize);
 	}
 
-	public DFEVar realign(DFEVar data, DFEVar alignment) {
-		DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), 8);
-		DFEVector<DFEVar> array = vecType.newInstance(this);
+	public DFEVar realign(final DFEVar data, final DFEVar alignment) {
+		final DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), 8);
+		final DFEVector<DFEVar> array = vecType.newInstance(this);
 		for (int i=0; i < 8; i++) {
 			array.get(i) <== data.slice(i*8, 8);
 		}
 
-		DFEVar shiftRightAmount = alignment;
-		DFEVar shiftLeftAmount = (constant.var(dfeUInt(4), 8) - shiftRightAmount.cast(dfeUInt(4))).cast(dfeUInt(3));
+		final DFEVar shiftRightAmount = alignment;
+		final DFEVar shiftLeftAmount = (constant.var(dfeUInt(4), 8) - shiftRightAmount.cast(dfeUInt(4))).cast(dfeUInt(3));
 
 		/*
 		 * Due to alignment, a field my cross in to the next word.
@@ -158,9 +158,9 @@ public class FilteringKernel extends Kernel {
 		 * F F F y y y y y
 		 *
 		 */
-		DFEVector<DFEVar> shiftedLeft = array.shiftElementsLeft(shiftLeftAmount);
-		DFEVector<DFEVar> shiftedRight = array.shiftElementsRight(shiftRightAmount);
-		DFEVector<DFEVar> combined = alignment === 0 ? array : (stream.offset(shiftedLeft, 1) | shiftedRight);
+		final DFEVector<DFEVar> shiftedLeft = array.shiftElementsLeft(shiftLeftAmount);
+		final DFEVector<DFEVar> shiftedRight = array.shiftElementsRight(shiftRightAmount);
+		final DFEVector<DFEVar> combined = alignment === 0 ? array : (stream.offset(shiftedLeft, 1) | shiftedRight);
 
 		return combined.pack();
 	}
