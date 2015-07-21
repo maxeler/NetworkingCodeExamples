@@ -29,6 +29,7 @@ public class FilteringKernel extends Kernel {
 
 	FilteringKernel(final KernelParameters parameters) {
 		super(parameters);
+		stream.suppressOffsetVectorWarnings();
 
 		flush.disabled();
 
