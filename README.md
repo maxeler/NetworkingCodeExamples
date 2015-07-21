@@ -7,4 +7,4 @@ Note that the included `config.sh` script must be sourced before running any of 
 
 ## Dependencies
 
-This example requires [MaxPower](https://github.com/maxeler/maxpower).
+MaxPower is required by some of these examples and is included as a git submodule within the `lib` directory. This must be compiled before building the example bitstreams.
