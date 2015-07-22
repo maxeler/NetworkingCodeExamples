@@ -18,16 +18,6 @@ Open the bitstream Java Project.
 
 Open `SignExtManager.maxj` and execute the `main()` function.
 
-Or, from the terminal, enter the following:
-
-```
-$ source config.sh
-Setting EXAMPLESDIR to /home/mhaslehurst/Workspaces/networking-examples
-$ cd bitstream
-$ maxJavaRun SignExtManager
-$ cd .. 
-```
-
 ### Runtime
 
 Copy the maxfile output from the Bitstream to the `runtime` directory.
