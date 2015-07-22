@@ -13,6 +13,7 @@ except ImportError, e:
 
 MAXOSDIR = os.environ['MAXELEROSDIR']
 MAXCOMPILERDIR = os.environ['MAXCOMPILERDIR']
+DFE_MODEL = 'ISCA'
 
 MAXFILE = 'SignExt.max'
 DESIGN_NAME = MAXFILE.replace('.max', '')
@@ -73,7 +74,7 @@ def run_sim():
 	subprocess.call(['./' + target, ip1, tap1_ip])
 
 def start_sim():
-	subprocess.call([maxcompilersim(), '-n', getSimName(), '-c', 'ISCA', '-e', init_tap1, '-p', 'QSFP_TOP_10G_PORT1:top1.pcap', 'restart'])
+	subprocess.call([maxcompilersim(), '-n', getSimName(), '-c', DFE_MODEL, '-e', init_tap1, '-p', 'QSFP_TOP_10G_PORT1:top1.pcap', 'restart'])
 
 def stop_sim():
 	subprocess.call([maxcompilersim(), '-n', getSimName(), '-e', init_tap1, 'stop'])
