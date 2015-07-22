@@ -21,7 +21,9 @@ $ ./run.py
 In a separate terminal window, run the following:
 
 ```
-$ cd ../sender
+$ cd ..
+$ source config.sh
+$ cd sender
 $ ./build.py
 $ ./sender
 ```
