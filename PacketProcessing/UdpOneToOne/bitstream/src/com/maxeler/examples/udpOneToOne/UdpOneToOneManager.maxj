@@ -12,31 +12,30 @@ import com.maxeler.networking.v1.managers.netlib.UDPChecksumMode;
 import com.maxeler.networking.v1.managers.netlib.UDPConnectionMode;
 import com.maxeler.networking.v1.managers.netlib.UDPStream;
 
-
 public class UdpOneToOneManager extends NetworkManager {
 
-	public UdpOneToOneManager(UdpOneToOneParameters params) {
+	public UdpOneToOneManager(final UdpOneToOneParameters params) {
 		super(params.getEngineParams());
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
 
-		UDPOneToOneRXType udpTypeRx = new UDPOneToOneRXType();
-		UDPOneToOneTXType udpTypeTx = new UDPOneToOneTXType();
+		final UDPOneToOneRXType udpTypeRx = new UDPOneToOneRXType();
+		final UDPOneToOneTXType udpTypeTx = new UDPOneToOneTXType();
 
 
-		UDPStream udpTop1 = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.Disabled);
-		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		final UDPStream udpTop1 = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.Disabled);
+		final ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
 
 		addFramedStreamToCPU("toCpu", udpTypeRx, 512, 512) <== udpTop1.getReceiveStream();
 		udpTop1.getTransmitStream() <== addFramedStreamFromCPU("fromCpu", udpTypeTx);
 	}
 
-	public static void main(String[] args) {
-		UdpOneToOneParameters params = new UdpOneToOneParameters(args);
-		UdpOneToOneManager manager = new UdpOneToOneManager(params);
+	public static void main(final String[] args) {
+		final UdpOneToOneParameters params = new UdpOneToOneParameters(args);
+		final UdpOneToOneManager manager = new UdpOneToOneManager(params);
 
-		BuildConfig buildConfig = manager.getBuildConfig();
+		final BuildConfig buildConfig = manager.getBuildConfig();
 		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		buildConfig.setMPPRParallelism(params.getMPPRThreads());
 		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
