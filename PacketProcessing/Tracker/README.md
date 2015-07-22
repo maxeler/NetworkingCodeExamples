@@ -5,7 +5,7 @@ This is an Maxeler DFE networking example project. Please see the included text 
 ## Running
 
 ```
-$ source ../../config.sh
+$ source config.sh
 <...>
 $ cd bitstream
 $ maxJavaRun TrackerManager

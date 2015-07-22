@@ -21,7 +21,7 @@ Open `SignExtManager.maxj` and execute the `main()` function.
 Or, from the terminal, enter the following:
 
 ```
-$ source ../../config.sh
+$ source config.sh
 Setting EXAMPLESDIR to /home/mhaslehurst/Workspaces/networking-examples
 $ cd bitstream
 $ maxJavaRun SignExtManager
@@ -33,7 +33,7 @@ $ cd ..
 Copy the maxfile output from the Bitstream to the `runtime` directory.
 
 ```
-$ source ../../config.sh
+$ source config.sh
 $ cd runtime
 $ ./build.py
 /network-raid/opt/maxcompiler-2014.1.1/bin/sliccompile SignExt.max SignExt.o
