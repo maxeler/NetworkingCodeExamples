@@ -20,6 +20,7 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 	protected void declarations() {
 		declareParam(s_parameterDFE, "DFE model", DataType.DFEMODEL, DFEModel.ISCA);
 		declareParam(s_parameterMaxFileName, DataType.STRING, "BinFIFOGateway128");
+		declareParam("target", Target.class, Target.DFE_SIM);
 
 		declareParam("hasStreamStatus", DataType.BOOL, true);
 		declareParam("ethConnection", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);

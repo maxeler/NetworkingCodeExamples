@@ -65,6 +65,7 @@ public class FIFOGatewayManager extends NetworkManager {
 		DFELink framed = TCPFramer.create(this, "gateway",
 				params.getEthConnection(),
 				tcpStream,
+				tcpStream.getConnStateEventStream(),
 				framerDepth,
 				memManager, specFactories);
 

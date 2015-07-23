@@ -55,7 +55,7 @@ public class Inbound extends Kernel {
 				inboundHeader[InboundHeaderType.ERROR_CODE]);
 
 
-		DFEStruct outputLink = types.simpleLinkType.newInstance(this);
+		DFEStruct outputLink = types.simpleLinkType.getDFEStructType().newInstance(this);
 		outputLink[types.simpleLinkType.getData()] <== inject ?
 									stream.offset(inboundHeader.pack(), 1) : (DFEVar)framerData[TCPFramerLinkType.DATA];
 
@@ -64,6 +64,6 @@ public class Inbound extends Kernel {
 		outputLink[types.simpleLinkType.getMod()] <== inject ? 0 : (DFEVar)framerData[TCPFramerLinkType.MOD];
 
 
-		io.output(OUTPUT_TO_CPU, types.simpleLinkType, inject | valid) <== outputLink;
+		io.output(OUTPUT_TO_CPU, types.simpleLinkType.getDFEStructType(), inject | valid) <== outputLink;
 	}
 }
