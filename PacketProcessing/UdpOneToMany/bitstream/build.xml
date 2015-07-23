@@ -42,7 +42,7 @@
 	</target>
 	
 	<target name="UdpOneToMany">
-		<java classname="com.maxeler.examples.udpOffload.udpOffload" failonerror="true" fork="yes">
+		<java classname="com.maxeler.examples.udpOneToMany" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>
