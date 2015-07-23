@@ -21,7 +21,7 @@ public class FIFOGatewayTypes {
 	public final InboundHeaderType inboundHeaderType = new InboundHeaderType();
 	public final OutboundHeaderType outboundHeaderType = new OutboundHeaderType();
 
-	public FIFOGatewayTypes(MaxTCPVersion tcpVersion) {
+	public FIFOGatewayTypes(final MaxTCPVersion tcpVersion) {
 		this.tcpTypes = new TCPManyConnectionsTypes(tcpVersion);
 		fixFramerLinkType = new TCPFramerLinkType(tcpTypes);
 	}
@@ -65,7 +65,7 @@ public class FIFOGatewayTypes {
 		}
 	}
 
-	public static void main(String[] args) {
+	public static void main(final String[] args) {
 		StructUtils.printDFEStructType(new FIFOGatewayTypes(MaxTCPVersion.TCP_1KC_V2).inboundHeaderType);
 	}
 }

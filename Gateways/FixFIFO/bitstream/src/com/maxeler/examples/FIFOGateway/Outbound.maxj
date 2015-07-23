@@ -18,14 +18,14 @@ public class Outbound extends Kernel {
 	public static final String INPUT_FROM_CPU = "fromCPU";
 	public static final String OUTPUT_TO_TCP = "toTCP";
 
-	public Outbound(KernelParameters parameters, FIFOGatewayTypes types) {
+	public Outbound(final KernelParameters parameters, final FIFOGatewayTypes types) {
 		super(parameters);
 
 		flush.disabled();
 
-		SimpleFramedLinkType inputLinkType = types.simpleLinkType;
+		final SimpleFramedLinkType inputLinkType = types.simpleLinkType;
 
-		NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(INPUT_FROM_CPU,
+		final NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(INPUT_FROM_CPU,
 				inputLinkType.getDFEStructType(),
 				constant.var(true),
 				inputLinkType.getDFEStructType().getPositionForField(inputLinkType.getEOF()),
@@ -34,21 +34,21 @@ public class Outbound extends Kernel {
 				NonBlockingMode.NO_TRICKLING);
 
 
-		DFEStruct input = fromCPU.data;
-		DFEVar valid = fromCPU.valid;
+		final DFEStruct input = fromCPU.data;
+		final DFEVar valid = fromCPU.valid;
 
-		DFEVar eof = input[inputLinkType.getEOF()];
-		DFEVar sof = input[inputLinkType.getSOF()];
-		DFEVar mod = input[inputLinkType.getMod()];
-		DFEVar data = input[inputLinkType.getData()];
-		DFEVar start = valid & (DFEVar)sof;
+		final DFEVar eof = input[inputLinkType.getEOF()];
+		final DFEVar sof = input[inputLinkType.getSOF()];
+		final DFEVar mod = input[inputLinkType.getMod()];
+		final DFEVar data = input[inputLinkType.getData()];
+		final DFEVar start = valid & (DFEVar)sof;
 
-		DFEVar socket_num = Reductions.streamHold((DFEVar)types.outboundHeaderType.unpack(data).get(OutboundHeaderType.SOCKET_NUM), start);
+		final DFEVar socket_num = Reductions.streamHold((DFEVar)types.outboundHeaderType.unpack(data).get(OutboundHeaderType.SOCKET_NUM), start);
 
-		TxDataType txType = types.tcpTypes.getTxDataType();
+		final TxDataType txType = types.tcpTypes.getTxDataType();
 
 		System.out.printf("TX Type width = %d\n", txType.getTotalBits());
-		DFEStruct tx = txType.newInstance(this);
+		final DFEStruct tx = txType.newInstance(this);
 
 		tx[TxDataType.SOCKET] <== socket_num.cast(txType.getTypeForField(TxDataType.SOCKET));
 		tx[TxDataType.SOF] <== stream.offset(sof, -1);

@@ -12,7 +12,7 @@ import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
 
 public class FIFOGatewayEngineParameters extends ApplicationParameters {
 
-	public FIFOGatewayEngineParameters(String[] args) {
+	public FIFOGatewayEngineParameters(final String[] args) {
 		super(args);
 	}
 
@@ -27,7 +27,7 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 
         declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
 	}
-	public void applyParamsToManager(NetworkManager manager) {
+	public void applyParamsToManager(final NetworkManager manager) {
         logParameters(manager);
 
         manager.addMaxFileStringConstant("target", getTarget().name());
