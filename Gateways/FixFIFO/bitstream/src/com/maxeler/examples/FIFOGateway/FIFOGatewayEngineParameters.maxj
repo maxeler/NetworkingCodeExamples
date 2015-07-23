@@ -6,6 +6,7 @@ import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.build.EngineParameters.Target;
 import com.maxeler.maxcompiler.v2.managers.DFEModel;
 import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.NetworkManager.TcpNumConnectionsRequired;
 import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
 
@@ -22,7 +23,7 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 		 declareParam("hasStreamStatus", DataType.BOOL, true);
 		 declareParam("ethConnection",  Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		 declareParam("MaxTCPVersion", MaxTCPVersion.class, MaxTCPVersion.TCP_1KC_V2);
-		 declareDerivedParam("numTcpConnectionsSupported", DataType.INT);
+		 declareParam("numTcpConnectionsSupported", TcpNumConnectionsRequired.class, TcpNumConnectionsRequired.Max1024Connections);
 
         declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
 	}
@@ -33,7 +34,7 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
         manager.addMaxFileStringConstant("board", getDFEModel().toString());
         manager.addMaxFileConstant("isSimulation", isSimulation() ? 1 : 0);
         manager.addMaxFileConstant("hasStreamStatus", hasStreamStatus() ? 1 : 0);
-        manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsSupported());
+        manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsSupported().getNumConnections());
         manager.addMaxFileConstant("maxTcpWindowSize", getMaxTcpWindowSize());
         manager.addMaxFileStringConstant("ethConnection", getEthConnection().name());
         manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
@@ -57,7 +58,6 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 
 	@Override
 	protected void deriveParameters() {
-		deriveParam("numTcpConnectionsSupported", 1 << getMaxTCPVersion().getSocketBits());
 	}
 
 	@Override
@@ -86,7 +86,7 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 		return getParam("MaxTCPVersion");
 	}
 
-	public int getNumTcpConnectionsSupported() {
+	public TcpNumConnectionsRequired getNumTcpConnectionsSupported() {
 		return getParam("numTcpConnectionsSupported");
 	}
 
