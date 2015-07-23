@@ -43,6 +43,7 @@
 	
 	<target name="SignExtWithPatternMatching">
 		<java classname="com.maxeler.examples.signExtender.SignExtManager" failonerror="true" fork="yes">
+			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>
 	</target>
