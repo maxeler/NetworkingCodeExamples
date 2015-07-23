@@ -12,7 +12,7 @@ import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
 
 public class FIFOGatewayEngineParameters extends EngineParameters {
-	public FIFOGatewayEngineParameters(String[] args) {
+	public FIFOGatewayEngineParameters(final String[] args) {
 		super(args);
 	}
 
@@ -28,7 +28,7 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 		declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
 	}
 
-	public void applyParamsToManager(NetworkManager manager) {
+	public void applyParamsToManager(final NetworkManager manager) {
 		logParameters(manager);
 
 		manager.addMaxFileConstant("numTcpConnectionsSupported", getnumTcpConnectionsRequired().getNumConnections());
@@ -37,7 +37,7 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 		manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
 		manager.addMaxFileConstant("txWindowSizeKB", manager.network_config.getTCPTransmitWindowSize(getEthConnection()));
 
-		BuildConfig buildConfig = getBuildConfig();
+		final BuildConfig buildConfig = getBuildConfig();
 		buildConfig.setBuildEffort(Effort.VERY_HIGH);
 		manager.setBuildConfig(buildConfig);
 
