@@ -41,7 +41,7 @@
 		</maxjcompiler>
 	</target>
 	
-	<target name="FIFOGateway">
+	<target name="BinFIFOGateway">
 		<java classname="com.maxeler.examples.FIFOGateway.FIFOGatewayManager" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
