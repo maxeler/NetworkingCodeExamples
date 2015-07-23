@@ -41,7 +41,7 @@
 		</maxjcompiler>
 	</target>
 	
-	<target name="SignExt">
+	<target name="UdpOneToOne">
 		<java classname="com.maxeler.examples.udpOffload.udpOffload" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
