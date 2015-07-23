@@ -18,30 +18,29 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 
 	@Override
 	protected void declarations() {
-		 declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
-		 declareParam("target", Target.class, Target.DFE_SIM);
-		 declareParam("hasStreamStatus", DataType.BOOL, true);
-		 declareParam("ethConnection",  Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
-		 declareParam("MaxTCPVersion", MaxTCPVersion.class, MaxTCPVersion.TCP_1KC_V2);
-		 declareParam("numTcpConnectionsSupported", TcpNumConnectionsRequired.class, TcpNumConnectionsRequired.Max1024Connections);
+		declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
+		declareParam("target", Target.class, Target.DFE_SIM);
+		declareParam("hasStreamStatus", DataType.BOOL, true);
+		declareParam("ethConnection",  Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		declareParam("MaxTCPVersion", MaxTCPVersion.class, MaxTCPVersion.TCP_1KC_V2);
+		declareParam("numTcpConnectionsSupported", TcpNumConnectionsRequired.class, TcpNumConnectionsRequired.Max1024Connections);
 
-        declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
+		declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
 	}
+
 	public void applyParamsToManager(final NetworkManager manager) {
-        logParameters(manager);
+		logParameters(manager);
 
-        manager.addMaxFileStringConstant("target", getTarget().name());
-        manager.addMaxFileStringConstant("board", getDFEModel().toString());
-        manager.addMaxFileConstant("isSimulation", isSimulation() ? 1 : 0);
-        manager.addMaxFileConstant("hasStreamStatus", hasStreamStatus() ? 1 : 0);
-        manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsSupported().getNumConnections());
-        manager.addMaxFileConstant("maxTcpWindowSize", getMaxTcpWindowSize());
-        manager.addMaxFileStringConstant("ethConnection", getEthConnection().name());
-        manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
-        manager.addMaxFileConstant("txWindowSizeKB", manager.network_config.getTCPTransmitWindowSize(getEthConnection()));
+		manager.addMaxFileStringConstant("target", getTarget().name());
+		manager.addMaxFileStringConstant("board", getDFEModel().toString());
+		manager.addMaxFileConstant("isSimulation", isSimulation() ? 1 : 0);
+		manager.addMaxFileConstant("hasStreamStatus", hasStreamStatus() ? 1 : 0);
+		manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsSupported().getNumConnections());
+		manager.addMaxFileConstant("maxTcpWindowSize", getMaxTcpWindowSize());
+		manager.addMaxFileStringConstant("ethConnection", getEthConnection().name());
+		manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
+		manager.addMaxFileConstant("txWindowSizeKB", manager.network_config.getTCPTransmitWindowSize(getEthConnection()));
 	}
-
-
 
 	public boolean isSimulation() {
 		return getTarget() == Target.DFE_SIM;
@@ -54,7 +53,6 @@ public class FIFOGatewayEngineParameters extends ApplicationParameters {
 	public boolean hasStreamStatus() {
 		return getParam("hasStreamStatus");
 	}
-
 
 	@Override
 	protected void deriveParameters() {
