@@ -8,7 +8,7 @@
 
 	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
 
-	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>  
+	<property name="maxeda"   value="${env.MAXCOMPILERDIR}../../maxeda/bin"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
@@ -43,6 +43,7 @@
 	
 	<target name="Tracker">
 		<java classname="com.maxeler.examples.tracker.TrackerManager" failonerror="true" fork="yes">
+			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>
 	</target>
