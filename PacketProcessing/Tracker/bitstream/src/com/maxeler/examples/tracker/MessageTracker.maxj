@@ -1,7 +1,5 @@
 package com.maxeler.examples.tracker;
 
-
-import com.maxeler.maxblox.statemachine.SMUtils;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.managers.DFEManager;
@@ -15,6 +13,7 @@ import com.maxeler.maxcompiler.v2.statemachine.manager.ManagerStateMachine;
 import com.maxeler.maxcompiler.v2.statemachine.stdlib.Buffer.DFEsmFifoConfig;
 import com.maxeler.maxcompiler.v2.statemachine.stdlib.buffer.DFEsmFifo;
 import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
+import com.maxeler.statemachine.utils.SMUtils;
 
 public class MessageTracker extends ManagerStateMachine {
 	public static final boolean DEBUG_ENABLED = false;
