@@ -19,7 +19,7 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 	@Override
 	protected void declarations() {
 		declareParam(s_parameterDFE, "DFE model", DataType.DFEMODEL, DFEModel.ISCA);
-		declareParam(s_parameterMaxFileName, DataType.STRING, "BinFIFOGateway128");
+		declareParam(s_parameterMaxFileName, DataType.STRING, "BinFIFOGateway");
 		declareParam("target", Target.class, Target.DFE_SIM);
 
 		declareParam("hasStreamStatus", DataType.BOOL, true);
