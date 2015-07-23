@@ -31,7 +31,7 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 	public void applyParamsToManager(final NetworkManager manager) {
 		logParameters(manager);
 
-		manager.addMaxFileConstant("numTcpConnectionsSupported", getnumTcpConnectionsRequired().getNumConnections());
+		manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsRequired().getNumConnections());
 		manager.addMaxFileConstant("maxTcpWindowSize", getMaxTcpWindowSize());
 		manager.addMaxFileStringConstant("ethConnection", getEthConnection().name());
 		manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
@@ -57,10 +57,10 @@ public class FIFOGatewayEngineParameters extends EngineParameters {
 	}
 
 	public MaxTCPVersion getMaxTCPVersion() {
-		return MaxTCPVersion.fromNumConnections(true, getnumTcpConnectionsRequired());
+		return MaxTCPVersion.fromNumConnections(true, getNumTcpConnectionsRequired());
 	}
 
-	public TcpNumConnectionsRequired getnumTcpConnectionsRequired() {
+	public TcpNumConnectionsRequired getNumTcpConnectionsRequired() {
 		return getParam("numTcpConnectionsRequired");
 	}
 

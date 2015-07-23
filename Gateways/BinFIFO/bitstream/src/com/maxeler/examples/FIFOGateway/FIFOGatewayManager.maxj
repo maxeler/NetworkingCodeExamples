@@ -48,7 +48,7 @@ public class FIFOGatewayManager extends NetworkManager {
 
 		memManager = new MemoryManager(this);
 
-		final TCPStreamManyConnections tcpStream = addTCPStreamManyConnections("tcpStream", params.getEthConnection(), params.getnumTcpConnectionsRequired());
+		final TCPStreamManyConnections tcpStream = addTCPStreamManyConnections("tcpStream", params.getEthConnection(), params.getNumTcpConnectionsRequired());
 
 		final ManagerClock netClk = getNetworkClock(params.getEthConnection());
 		pushDefaultClock(netClk);
@@ -58,7 +58,7 @@ public class FIFOGatewayManager extends NetworkManager {
 			TCPRxWindowMemory.connectToQMem(this, params.getEthConnection(), params.getMaxTCPVersion(), Max4QMem.QMEM2);
 		}
 
-		final int framerDepth = params.getnumTcpConnectionsRequired().getNumConnections() * params.getMaxTcpWindowSize();
+		final int framerDepth = params.getNumTcpConnectionsRequired().getNumConnections() * params.getMaxTcpWindowSize();
 
 		final List<ProtoSpecFactory> specFactories = new LinkedList<ProtoSpecFactory>();
 		specFactories.add(new BinProtoSpecFactory());
