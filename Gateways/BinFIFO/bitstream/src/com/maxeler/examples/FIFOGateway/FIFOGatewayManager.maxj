@@ -4,15 +4,16 @@ package com.maxeler.examples.FIFOGateway;
 import java.util.LinkedList;
 import java.util.List;
 
+import maxpower.network.tcp.manyconn.framer.TCPFramer;
+import maxpower.network.tcp.manyconn.framer.TCPFramerConstants;
+import maxpower.network.tcp.manyconn.framer.proto.ProtoSpecFactory;
+
 import com.maxeler.examples.FIFOGateway.protocol.BinProtoSpecFactory;
 import com.maxeler.maxcompiler.v2.managers.custom.DFELink;
 import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.Max4QMem;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.MemoryControllerConfig;
-import com.maxeler.maxjlibs.network.TCPFramer;
-import com.maxeler.maxjlibs.network.TCPFramerConstants;
-import com.maxeler.maxjlibs.network.proto.ProtoSpecFactory;
 import com.maxeler.networking.statemachines.TCPRxWindowMemory;
 import com.maxeler.networking.statemachines.TCPTxWindowMemory;
 import com.maxeler.networking.v1.managers.NetworkManager;

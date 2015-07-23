@@ -1,4 +1,6 @@
 package com.maxeler.examples.FIFOGateway;
+import maxpower.network.tcp.manyconn.framer.TCPFramerTypes.TCPFramerLinkType;
+
 import com.maxeler.examples.FIFOGateway.FIFOGatewayTypes.InboundHeaderType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
@@ -8,7 +10,6 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
-import com.maxeler.maxjlibs.network.TCPFramerTypes.TCPFramerLinkType;
 
 
 public class Inbound extends Kernel {

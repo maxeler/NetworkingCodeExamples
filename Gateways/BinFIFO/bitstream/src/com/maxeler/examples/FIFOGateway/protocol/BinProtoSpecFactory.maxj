@@ -1,8 +1,8 @@
 package com.maxeler.examples.FIFOGateway.protocol;
 
-import com.maxeler.maxjlibs.network.TCPFramerSM;
-import com.maxeler.maxjlibs.network.proto.FramerProtocolSpec;
-import com.maxeler.maxjlibs.network.proto.ProtoSpecFactory;
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM;
+import maxpower.network.tcp.manyconn.framer.proto.FramerProtocolSpec;
+import maxpower.network.tcp.manyconn.framer.proto.ProtoSpecFactory;
 
 public class BinProtoSpecFactory implements ProtoSpecFactory {
 	@Override

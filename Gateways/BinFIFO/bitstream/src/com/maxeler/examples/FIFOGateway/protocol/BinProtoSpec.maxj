@@ -1,10 +1,11 @@
 package com.maxeler.examples.FIFOGateway.protocol;
 
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM;
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM.FramerStates;
+import maxpower.network.tcp.manyconn.framer.proto.FramerProtocolSpec;
+
 import com.maxeler.maxcompiler.v2.managers.DFEManager;
 import com.maxeler.maxcompiler.v2.statemachine.DFEsmValue;
-import com.maxeler.maxjlibs.network.TCPFramerSM;
-import com.maxeler.maxjlibs.network.TCPFramerSM.FramerStates;
-import com.maxeler.maxjlibs.network.proto.FramerProtocolSpec;
 import com.maxeler.statemachine.utils.SMUtils;
 
 public class BinProtoSpec extends FramerProtocolSpec {
