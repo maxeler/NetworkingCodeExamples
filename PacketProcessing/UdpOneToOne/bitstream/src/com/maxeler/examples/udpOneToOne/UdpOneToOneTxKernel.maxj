@@ -1,0 +1,64 @@
+package com.maxeler.examples.udpOneToOne;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.statemachines.UDPConstants;
+import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.networking.v1.kernel_types.UDPOneToOneTXType;
+
+public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
+	public static final String INPUT = "input";
+	public static final String OUTPUT = "output";
+
+	public static final SimpleFramedLinkType INPUT_TYPE = new SimpleFramedLinkType();
+	public static final UDPOneToOneTXType OUTPUT_TYPE = new UDPOneToOneTXType();
+
+	public UdpOneToOneTxKernel(final KernelParameters params) {
+		super(params);
+
+		final NonBlockingInput<DFEStruct> src  = io.nonBlockingInput(
+			INPUT,
+			INPUT_TYPE.getDFEStructType(),
+			constant.var(true),
+			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToOneTXType.EOF),
+			DelimiterMode.EOF_POSITION,
+			3,
+			NonBlockingMode.NO_TRICKLING);
+
+		final DFEStruct dataIn = src.data;
+		final DFEVar inputValid = src.valid;
+
+		/*
+		 * Remove first data word and use for socket number (shorten frame length by 1 cycle)
+		 *
+		 * Cycle 0 : Socket number (8 bits) & Padding (48 bits)
+		 * Cycle 1 : Data word 0
+		 * ..
+		 * Cycle n+1 : Data word n
+		 *
+		 * This currently wastes 48 bits / frame.
+		 * To fix this, re-align and shift the data, update the MOD entry on the final cycle & potentially set EOF a cycle earlier.
+		 * This is not done here for clarity.
+		 */
+
+		final DFEVar sof = dataIn[SimpleFramedLinkType.SOF];
+		DFEVar metadata = dataIn[SimpleFramedLinkType.DATA];
+		DFEVar socket = metadata.slice(48, UDPConstants.SOCKET_SIZE).cast(dfeUInt(UDPConstants.SOCKET_SIZE));
+
+		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
+		out[UDPOneToOneTXType.SOF] <== dataIn[SimpleFramedLinkType.SOF];
+		out[UDPOneToOneTXType.EOF] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.EOF], 1);
+		out[UDPOneToOneTXType.MOD] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.MOD], 1);
+		out[UDPOneToOneTXType.DATA] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.DATA], 1);
+        out[UDPOneToOneTXType.SOCKET] <== Reductions.streamHold(socket, sof);
+
+		final DFEVar outputValid = inputValid & stream.offset(inputValid, 1);
+		io.output(OUTPUT, out, OUTPUT_TYPE.getDFEStructType(), outputValid);
+	}
+}
