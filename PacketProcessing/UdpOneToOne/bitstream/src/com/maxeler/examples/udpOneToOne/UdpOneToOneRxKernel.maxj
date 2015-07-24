@@ -35,19 +35,19 @@ public class UdpOneToOneRxKernel extends ThroughputFramedKernel {
 		/*
 		 * Insert socket number as first data words (extend frame length by 1 cycle)
 		 *
-		 * Cycle 0 : Socket number (8 bits) & Padding (48 bits)
+		 * Cycle 0 : Socket number (8 bits) & Padding (56 bits)
 		 * Cycle 1 : Data word 0
 		 * ..
 		 * Cycle n+1 : Data word n
 		 *
-		 * This currently wastes 48 bits / frame.
+		 * This currently wastes 56 bits / frame.
 		 * To fix this, re-align and shift the data, update the MOD entry on the final cycle & potentially set EOF a cycle earlier.
 		 * This is not done here for clarity.
 		 */
 
 		final DFEVar sof = dataIn[UDPOneToOneRXType.SOF];
 		final DFEVar insertMetadata = sof;
-		final DFEVar metadata = (DFEVar)dataIn[UDPOneToOneRXType.SOCKET] # constant.var(dfeRawBits(48), 0);
+		final DFEVar metadata = (DFEVar)dataIn[UDPOneToOneRXType.SOCKET] # constant.var(dfeRawBits(56), 0);
 
 		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
 		out[SimpleFramedLinkType.SOF] <== dataIn[UDPOneToOneRXType.SOF];
