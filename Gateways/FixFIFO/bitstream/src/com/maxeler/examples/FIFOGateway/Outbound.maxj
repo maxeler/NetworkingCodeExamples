@@ -25,7 +25,8 @@ public class Outbound extends Kernel {
 
 		final SimpleFramedLinkType inputLinkType = types.simpleLinkType;
 
-		final NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(INPUT_FROM_CPU,
+		final NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(
+				INPUT_FROM_CPU,
 				inputLinkType.getDFEStructType(),
 				constant.var(true),
 				inputLinkType.getDFEStructType().getPositionForField(inputLinkType.getEOF()),
