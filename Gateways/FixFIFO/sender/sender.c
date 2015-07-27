@@ -17,21 +17,15 @@
 
 
 static int create_socket(struct in_addr *remote_ip, int port) {
-	int sock = socket(AF_INET, SOCK_DGRAM, 0);
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	struct sockaddr_in sockaddr;
 	memset(&sockaddr, 0, sizeof(sockaddr));
 	sockaddr.sin_family = AF_INET;
 	sockaddr.sin_port = htons(port);
-
-//	sockaddr.sin_addr = *local_ip;
-	if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) != 0) {
-		printf("Bind failed: %s\n", strerror(errno));
-		exit(1);
-	}
-
 	sockaddr.sin_addr = *remote_ip;
-    connect(sock, (const struct sockaddr*) &sockaddr, sizeof(sockaddr));
+
+	connect(sock, (const struct sockaddr*) &sockaddr, sizeof(sockaddr));
 
 	return sock;
 }
@@ -85,17 +79,18 @@ static void send_frames(int sock) {
 
 
 int main(int argc, char *argv[]) {
-	(void) argc;
-	(void) argv;
+	char *ip = "172.16.50.1";
+	if (argc >= 2) ip = argv[1];
 
 	struct in_addr remote_ip;
-	inet_aton("172.16.50.1", &remote_ip);
+	inet_aton(ip, &remote_ip);
+	int port = 1000;
 
-	int mySocket = create_socket(&remote_ip, 1000);
+	int mySocket = create_socket(&remote_ip, port);
 
 	send_frames(mySocket);
 
-	printf("Sender finished\n");
-	getchar();
-}
+	close(mySocket);
 
+	printf("Sender finished\n");
+}
