@@ -23,10 +23,8 @@ static int create_socket(struct in_addr *remote_ip, int port) {
 	memset(&sockaddr, 0, sizeof(sockaddr));
 	sockaddr.sin_family = AF_INET;
 	sockaddr.sin_port = htons(port);
-
-//	sockaddr.sin_addr = *local_ip;
-
 	sockaddr.sin_addr = *remote_ip;
+
     connect(sock, (const struct sockaddr*) &sockaddr, sizeof(sockaddr));
 
 	return sock;

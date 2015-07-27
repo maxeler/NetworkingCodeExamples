@@ -25,7 +25,9 @@ public class Outbound extends Kernel {
 
 		final SimpleFramedLinkType inputLinkType = types.simpleLinkType;
 
-		final NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(INPUT_FROM_CPU, inputLinkType.getDFEStructType(),
+		final NonBlockingInput<DFEStruct> fromCPU = io.nonBlockingInput(
+				INPUT_FROM_CPU,
+				inputLinkType.getDFEStructType(),
 				constant.var(true),
 				inputLinkType.getDFEStructType().getPositionForField(inputLinkType.getEOF()),
 				DelimiterMode.EOF_POSITION,
@@ -44,7 +46,7 @@ public class Outbound extends Kernel {
 
 		final DFEVar socket_num = Reductions.streamHold((DFEVar)types.outboundHeaderType.unpack(data).get(OutboundHeaderType.SOCKET_NUM), start);
 
-		com.maxeler.networking.types.TCPManyConnectionsTypes.TxDataType txType = types.tcpTypes.getTxDataType();
+		final TxDataType txType = types.tcpTypes.getTxDataType();
 
 		System.out.printf("TX Type width = %d\n", txType.getTotalBits());
 		final DFEStruct tx = txType.newInstance(this);
