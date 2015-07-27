@@ -1,0 +1,64 @@
+package com.maxeler.examples.udpOneToMany;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.networking.v1.kernel_types.UDPOneToManyRXType;
+
+public class UdpOneToManyRxKernel extends ThroughputFramedKernel {
+	public static final String INPUT = "input";
+	public static final String OUTPUT = "output";
+
+	public static final UDPOneToManyRXType INPUT_TYPE = new UDPOneToManyRXType();
+	public static final SimpleFramedLinkType OUTPUT_TYPE = new SimpleFramedLinkType();
+
+	public UdpOneToManyRxKernel(final KernelParameters params) {
+		super(params);
+
+		final NonBlockingInput<DFEStruct> src  = io.nonBlockingInput(
+			INPUT,
+			INPUT_TYPE.getDFEStructType(),
+			constant.var(true),
+			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToManyRXType.EOF),
+			DelimiterMode.EOF_POSITION,
+			3,
+			NonBlockingMode.NO_TRICKLING);
+
+		final DFEStruct dataIn = src.data;
+		final DFEVar inputValid = src.valid;
+
+		/*
+		 * Insert metadata as first two data words (extend frame length by 2 cycles)
+		 *
+		 * Cycle 0 : MAC address (48 bits) & Port number (16 bits)
+		 * Cycle 1 : IP address (32 bits) & Socket number (8 bits) & Padding (24 bits)
+		 * Cycle 2 : Data word 0
+		 * ..
+		 * Cycle n+2 : Data word n
+		 *
+		 * This currently wastes 24 bits / frame.
+		 * To fix this, re-align and shift the data, update the MOD entry on the final cycle & potentially set EOF a cycle earlier.
+		 * This is not done here for clarity.
+		 */
+
+		final DFEVar sof = dataIn[UDPOneToManyRXType.SOF];
+		final DFEVar insertMetadata = sof | stream.offset(sof, -1);
+		final DFEVar metadata = sof ?
+				(DFEVar)dataIn[UDPOneToManyRXType.SRC_MAC] # (DFEVar)dataIn[UDPOneToManyRXType.SRC_PORT] :
+				stream.offset((DFEVar)dataIn[UDPOneToManyRXType.SRC_IP] # (DFEVar)dataIn[UDPOneToManyRXType.SOCKET] # constant.var(dfeRawBits(24), 0), -1);
+
+		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
+		out[SimpleFramedLinkType.SOF] <== dataIn[UDPOneToManyRXType.SOF];
+		out[SimpleFramedLinkType.EOF] <== stream.offset((DFEVar)dataIn[UDPOneToManyRXType.EOF], -2);
+		out[SimpleFramedLinkType.MOD] <== stream.offset((DFEVar)dataIn[UDPOneToManyRXType.MOD], -2);
+		out[SimpleFramedLinkType.DATA] <== insertMetadata ? metadata : stream.offset((DFEVar)dataIn[UDPOneToManyRXType.DATA], -2);
+
+		final DFEVar outputValid = inputValid | stream.offset(inputValid, -2);
+		io.output(OUTPUT, out, OUTPUT_TYPE.getDFEStructType(), outputValid);
+	}
+}

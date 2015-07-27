@@ -1,0 +1,3 @@
+[submodule "lib/maxpower"]
+	path = lib/maxpower
+	url = git@github.com:maxeler/maxpower.git

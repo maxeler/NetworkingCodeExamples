@@ -15,29 +15,29 @@ import com.maxeler.networking.v1.managers.netlib.UDPStream;
 
 public class TrackerManager extends NetworkManager {
 
-	public TrackerManager(TrackerEngineParameters params) {
+	public TrackerManager(final TrackerEngineParameters params) {
 		super(params.getEngineParams());
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
 
-		UDPStream frameIn = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.DropBadFrames);
+		final UDPStream frameIn = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.DropBadFrames);
 
-		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		final ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
 
-		StateMachineBlock msgTracker = addStateMachine("msgTracker", new MessageTracker(this));
+		final StateMachineBlock msgTracker = addStateMachine("msgTracker", new MessageTracker(this));
 		msgTracker.getInput(MessageTracker.INPUT_FRAME) <== frameIn.getReceiveStream();
-		KernelBlock kernel = addKernel(new FilteringKernel(makeKernelParameters("filteringKernel")));
+		final KernelBlock kernel = addKernel(new FilteringKernel(makeKernelParameters("filteringKernel")));
 		kernel.getInput(FilteringKernel.INPUT_MESSAGES) <== msgTracker.getOutput(MessageTracker.OUTPUT_MSGS);
 		addFramedStreamToCPU("toCPU", FilteringKernel.outputLinkType) <== kernel.getOutput(FilteringKernel.OUTPUT_MY_OUTPUT);
 
 	}
 
-	public static void main(String[] args) {
-		TrackerEngineParameters params = new TrackerEngineParameters(args);
-		TrackerManager manager = new TrackerManager(params);
+	public static void main(final String[] args) {
+		final TrackerEngineParameters params = new TrackerEngineParameters(args);
+		final TrackerManager manager = new TrackerManager(params);
 
-		BuildConfig buildConfig = manager.getBuildConfig();
+		final BuildConfig buildConfig = manager.getBuildConfig();
 		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		buildConfig.setMPPRParallelism(params.getMPPRThreads());
 		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());

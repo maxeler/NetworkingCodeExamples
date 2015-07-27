@@ -1,0 +1,32 @@
+package com.maxeler.examples.signExtender;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLib;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+public class StringSearchLib extends KernelLib {
+	// Searches for a fixed substring within an input string of known size
+
+	public final DFEVar matchFound;
+
+	public StringSearchLib(final KernelLib owner, final String searchString, final int inputLength, final DFEVar text) {
+		super(owner);
+
+		final int numStartPositions = inputLength - searchString.length();
+
+		DFEVar matched = constant.var(false);
+		for (int startPosition = 0; startPosition < numStartPositions; startPosition++) {
+			DFEVar positionMatches = constant.var(true);
+			for (int offset = 0; offset < searchString.length(); offset++) {
+				final DFEVar charMatch = searchString.charAt(offset) === extractByte(text, startPosition + offset);
+				positionMatches = positionMatches & charMatch;
+			}
+			matched = matched | positionMatches;
+		}
+
+		this.matchFound = matched;
+	}
+
+	private DFEVar extractByte(final DFEVar v, final int baseIndex) {
+		return v.slice(baseIndex * 8, 8); // Slice is a bit operation
+	}
+}

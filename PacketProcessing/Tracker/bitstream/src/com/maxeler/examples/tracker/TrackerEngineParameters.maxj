@@ -8,7 +8,7 @@ import com.maxeler.maxcompiler.v2.managers.DFEModel;
 
 public class TrackerEngineParameters extends ApplicationParameters {
 
-	public TrackerEngineParameters(String[] args) {
+	public TrackerEngineParameters(final String[] args) {
 		super(args);
 	}
 

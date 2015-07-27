@@ -8,7 +8,7 @@ import com.maxeler.maxcompiler.v2.managers.DFEModel;
 
 public class UdpOneToManyParameters extends ApplicationParameters {
 
-	public UdpOneToManyParameters(String[] args) {
+	public UdpOneToManyParameters(final String[] args) {
 		super(args);
 	}
 

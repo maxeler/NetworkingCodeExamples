@@ -1,4 +1,6 @@
 package com.maxeler.examples.FIFOGateway;
+import maxpower.network.tcp.manyconn.framer.TCPFramerTypes.TCPFramerLinkType;
+
 import com.maxeler.examples.FIFOGateway.FIFOGatewayTypes.InboundHeaderType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
@@ -8,7 +10,6 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
-import com.maxeler.maxjlibs.network.TCPFramerTypes.TCPFramerLinkType;
 
 
 public class Inbound extends Kernel {
@@ -16,29 +17,29 @@ public class Inbound extends Kernel {
 	public static final String INPUT_FROM_FRAMER = "fromFramer";
 	public static final String OUTPUT_TO_CPU = "toCPU";
 
-	public Inbound(KernelParameters parameters, FIFOGatewayTypes types) {
+	public Inbound(final KernelParameters parameters, final FIFOGatewayTypes types) {
 		super(parameters);
 
 		flush.disabled();
 
-		DFEStructType framerLinkStructType = types.fixFramerLinkType.getDFEStructType();
+		final DFEStructType framerLinkStructType = types.fixFramerLinkType.getDFEStructType();
 
-		NonBlockingInput<DFEStruct> fromFramer = io.nonBlockingInput(INPUT_FROM_FRAMER, framerLinkStructType,
+		final NonBlockingInput<DFEStruct> fromFramer = io.nonBlockingInput(INPUT_FROM_FRAMER, framerLinkStructType,
 				constant.var(true),
 				framerLinkStructType.getPositionForField(types.fixFramerLinkType.getEOF()),
 				DelimiterMode.EOF_POSITION,
 				2,
 				NonBlockingMode.NO_TRICKLING);
 
-		DFEStruct framerData = fromFramer.data;
-		DFEVar valid = fromFramer.valid;
+		final DFEStruct framerData = fromFramer.data;
+		final DFEVar valid = fromFramer.valid;
 
-		DFEVar isStart = valid & (DFEVar)framerData[TCPFramerLinkType.SOF];
+		final DFEVar isStart = valid & (DFEVar)framerData[TCPFramerLinkType.SOF];
 
-		DFEVar inject = stream.offset(isStart, 1);
+		final DFEVar inject = stream.offset(isStart, 1);
 
 
-		DFEStruct inboundHeader = types.inboundHeaderType.newInstance(this);
+		final DFEStruct inboundHeader = types.inboundHeaderType.newInstance(this);
 		inboundHeader[InboundHeaderType.SOCKET_NUM] <== framerData[TCPFramerLinkType.SOCKET].cast(inboundHeader[InboundHeaderType.SOCKET_NUM].getType());
 		inboundHeader[InboundHeaderType.CONNECTION_STATE] <== framerData[TCPFramerLinkType.CONNECTION_STATE];
 		inboundHeader[InboundHeaderType.CONNECTION_STATE_VALID] <== framerData[TCPFramerLinkType.CONNECTION_STATE_VALID];
@@ -55,7 +56,7 @@ public class Inbound extends Kernel {
 				inboundHeader[InboundHeaderType.ERROR_CODE]);
 
 
-		DFEStruct outputLink = types.simpleLinkType.newInstance(this);
+		final DFEStruct outputLink = types.simpleLinkType.getDFEStructType().newInstance(this);
 		outputLink[types.simpleLinkType.getData()] <== inject ?
 									stream.offset(inboundHeader.pack(), 1) : (DFEVar)framerData[TCPFramerLinkType.DATA];
 
@@ -64,6 +65,6 @@ public class Inbound extends Kernel {
 		outputLink[types.simpleLinkType.getMod()] <== inject ? 0 : (DFEVar)framerData[TCPFramerLinkType.MOD];
 
 
-		io.output(OUTPUT_TO_CPU, types.simpleLinkType, inject | valid) <== outputLink;
+		io.output(OUTPUT_TO_CPU, types.simpleLinkType.getDFEStructType(), inject | valid) <== outputLink;
 	}
 }

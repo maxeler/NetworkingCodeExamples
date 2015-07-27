@@ -1,49 +1,29 @@
 package com.maxeler.examples.FIFOGateway;
 
+import maxpower.network.tcp.manyconn.framer.TCPFramerConstants.FramerErrorCodes;
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM.FramerStates;
+import maxpower.network.tcp.manyconn.framer.TCPFramerTypes.TCPFramerLinkType;
+import maxpower.network.tcp.manyconn.framer.TCPInterfaceTypes;
+
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.maxeleros.managerblocks.StructUtils;
-import com.maxeler.maxjlibs.network.TCPFramerConstants.FramerErrorCodes;
-import com.maxeler.maxjlibs.network.TCPFramerSM.FramerStates;
-import com.maxeler.maxjlibs.network.TCPFramerTypes.TCPFramerLinkType;
-import com.maxeler.maxjlibs.network.TCPInterfaceTypes;
 import com.maxeler.networking.types.TCPManyConnectionsTypes;
-import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
 
 public class FIFOGatewayTypes {
 
 	public final TCPManyConnectionsTypes tcpTypes;
 	public final TCPFramerLinkType fixFramerLinkType;
-	public final SimpleLinkType simpleLinkType = new SimpleLinkType();
+	public final SimpleFramedLinkType simpleLinkType = new SimpleFramedLinkType();
 	public final InboundHeaderType inboundHeaderType = new InboundHeaderType();
 	public final OutboundHeaderType outboundHeaderType = new OutboundHeaderType();
 
-	public FIFOGatewayTypes(MaxTCPVersion tcpVersion) {
+	public FIFOGatewayTypes(final MaxTCPVersion tcpVersion) {
 		this.tcpTypes = new TCPManyConnectionsTypes(tcpVersion);
 		fixFramerLinkType = new TCPFramerLinkType(tcpTypes);
-	}
-
-	public static class SimpleLinkType extends DFEStructType implements FramedLinkType {
-		public static final String DATA = "data";
-		public static final String SOF = "sof";
-		public static final String EOF = "eof";
-		public static final String MOD = "mod";
-
-		public SimpleLinkType() {
-			super(
-					sft(DATA, DFETypeFactory.dfeRawBits(64)),
-					sft(SOF, DFETypeFactory.dfeBool()),
-					sft(EOF, DFETypeFactory.dfeBool()),
-					sft(MOD, DFETypeFactory.dfeUInt(3))
-			);
-		}
-		@Override public String getEOF() { return EOF; }
-		@Override public String getSOF() { return SOF; }
-		@Override public String getData() {	return DATA; }
-		@Override public String getMod() { return MOD;	}
-		@Override public DFEStructType getDFEStructType() {	return this; }
 	}
 
 	public static class InboundHeaderType extends DFEStructType {
@@ -85,7 +65,7 @@ public class FIFOGatewayTypes {
 		}
 	}
 
-	public static void main(String[] args) {
+	public static void main(final String[] args) {
 		StructUtils.printDFEStructType(new FIFOGatewayTypes(MaxTCPVersion.TCP_1KC_V2).inboundHeaderType);
 	}
 }

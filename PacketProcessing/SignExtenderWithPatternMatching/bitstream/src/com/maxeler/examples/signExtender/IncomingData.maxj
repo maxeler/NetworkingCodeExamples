@@ -1,0 +1,189 @@
+package com.maxeler.examples.signExtender;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLib;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVector;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEVectorType;
+import com.maxeler.maxcompiler.v2.utils.Bits;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
+
+public class IncomingData extends KernelLib {
+	public final DFEVar fieldA;
+	public final DFEVar fieldB;
+	public final DFEVar fieldC;
+	public final DFEVar textField;
+
+	public IncomingData(final KernelLib owner, final DFEStruct frames, final DFEVar valid, final int textLength) {
+		super(owner);
+
+		final DFEVar data = frames[UDPOneToOneRXType.DATA];
+		final DFEVar sof = frames[UDPOneToOneRXType.SOF];
+
+		/*
+		 * Input data is:
+		 * struct Something {
+   		 * 	uint8_t aSz : 3;
+   		 *	uint8_t bSz : 3;
+   		 *	uint8_t cSz : 2;
+   		 *	char data[];
+   		 *  char text[8];
+		 * };
+		 */
+
+		final DFEVar aSz = Reductions.streamHold(data.slice(0, 3).cast(dfeUInt(3)), sof);
+		final DFEVar bSz = Reductions.streamHold(data.slice(3, 3).cast(dfeUInt(3)), sof);
+		final DFEVar cSz = Reductions.streamHold(data.slice(6, 2).cast(dfeUInt(2)), sof);
+
+		debug.simPrintf(sof & valid, "Kernel got: aSz = %d, bSz = %d, cSz = %d\n", aSz, bSz, cSz);
+
+		/*
+		 * Word size is 8 bytes.
+		 *
+		 * Assuming little endian
+		 *
+		 * Construct super word, 28 bytes:
+		 * 7 data bytes from 1st cycle (current cycle)
+		 * 8 data bytes from 2nd cycle
+		 * 8 data bytes from 3rd cycle
+		 * 5 data bytes from 4th cycle
+		 *
+		 */
+
+		final DFEVar superWord = extractBytes(stream.offset(data, 3), 0, 5) # extractBytes(stream.offset(data, 2), 0, 8) # extractBytes(stream.offset(data, 1), 0, 8) # extractBytes(data, 1, 7);
+
+		final DFEVar bOffset = toActualSize(aSz);
+		final DFEVar cOffset = sum(bOffset, toActualSize(bSz));
+		final DFEVar textOffset = sum(cOffset, toActualSize(cSz));
+
+		final DFEVar aSuperWord = superWord;
+		final DFEVar bSuperWord = byteShiftRight(superWord, bOffset);
+		final DFEVar cSuperWord = byteShiftRight(superWord, cOffset);
+		final DFEVar dSuperWord = byteShiftRight(superWord, textOffset);
+
+		this.fieldA = extractValue(aSuperWord, aSz, sof);
+		this.fieldB = extractValue(bSuperWord, bSz, sof);
+		this.fieldC = extractValue(cSuperWord, cSz, sof);
+		this.textField = extractText(dSuperWord, textLength, sof);
+	}
+
+	private DFEVar extractValue(final DFEVar input, final DFEVar targetSize, final DFEVar start) {
+
+		final int maxSize = 1 << targetSize.getType().getTotalBits();
+
+		// Extract bytes
+		DFEVar field = extractBytes(input, 0, maxSize);
+
+		// Apply Sign extension mask
+		field = signExtend(targetSize, field);
+
+		// Hold the value, otherwise it would change on the next cycle, since the pipeline is correct only on the first word
+		field = Reductions.streamHold(field, start);
+
+		return field;
+	}
+
+	private DFEVar extractText(final DFEVar input, final int targetSize, final DFEVar start) {
+
+		// Extract bytes
+		DFEVar field = extractBytes(input, 0, 8);
+
+		// Hold the value, otherwise it would change on the next cycle, since the pipeline is correct only on the first word
+		field = Reductions.streamHold(field, start);
+
+		return field;
+	}
+
+	private DFEVar toActualSize(DFEVar v) {
+		final int maxFieldSize = 1 << v.getType().getTotalBits();
+		final DFEType fieldSizeType = dfeUInt(MathUtils.bitsToRepresent(maxFieldSize));
+		v = v === 0 ? constant.var(fieldSizeType, maxFieldSize) : v.cast(fieldSizeType);
+
+		return v;
+	}
+
+	private DFEVar sum(DFEVar a, DFEVar b) {
+		// Find the largest type
+		final int aWidth = a.getType().getTotalBits();
+		final int bWidth = b.getType().getTotalBits();
+
+		final int maxWidth = Math.max(aWidth, bWidth) + 1;
+
+		a = a.cast(dfeUInt(maxWidth));
+		b = b.cast(dfeUInt(maxWidth));
+
+		return a + b;
+	}
+
+	private DFEVar signExtend(final DFEVar sz, DFEVar v) {
+		final int numSignBits = v.getType().getTotalBits() / 8;
+		final int maskSizeBytes = 1 << sz.getType().getTotalBits();
+
+		if (numSignBits != maskSizeBytes) {
+			throw new RuntimeException("Number of sign bits must be equal to the byte size of the mask!");
+		}
+
+		final List<DFEVar> signBits = new ArrayList<DFEVar>(numSignBits);
+
+		// Extract all possible sign bits
+		for (int i=0; i < numSignBits; i++) {
+			signBits.add(i == 0 ? v.slice(numSignBits * 8 - 1) : v.slice(i* 8 - 1));
+		}
+
+		// Get the actual
+		final DFEVar theSignBit = control.mux(sz, signBits);
+
+		// Create a list of all possible masks for this size
+		final List<DFEVar> masks = new ArrayList<DFEVar>(maskSizeBytes);
+
+		// Assuming size = 0 means all bytes are valid
+		for (int i=0; i < maskSizeBytes; i++) {
+
+			final DFEVar ones = constant.var(dfeRawBits((maskSizeBytes - i) * 8), Bits.allOnes((maskSizeBytes - i)*8));
+
+			if (i > 0) {
+				final DFEVar zeros = constant.var(dfeRawBits(i * 8), Bits.allZeros(i*8));
+				masks.add(ones # zeros);
+			} else {
+				// We assume 0 means full field size!
+				final DFEVar zeros = constant.var(dfeRawBits(maskSizeBytes * 8), Bits.allZeros(maskSizeBytes*8));
+				masks.add(zeros);
+			}
+		}
+
+		// Select the right mask
+		final DFEVar signmask = control.mux(sz, masks);
+		final DFEVar mask = ~signmask;
+
+		// Clean up the word
+		v = v & mask;
+
+		// Extend the sign bit
+		v = v | (theSignBit ? signmask : 0);
+
+		return v;
+	}
+
+	private DFEVar extractBytes(final DFEVar v, final int baseIndex, final int howMany) {
+		return v.slice(baseIndex * 8, howMany * 8); // Slice is a bit operation
+	}
+
+	private DFEVar byteShiftRight(final DFEVar v, DFEVar shiftAmount) {
+		final int vecSize = v.getType().getTotalBits() / 8;
+		final DFEVectorType<DFEVar> vecType = new DFEVectorType<DFEVar>(dfeRawBits(8), vecSize);
+		final DFEVector<DFEVar> array = vecType.newInstance(this);
+		for (int i=0; i < vecSize; i++) {
+			array.get(i) <== v.slice(i*8, 8);
+		}
+
+		shiftAmount = shiftAmount.cast(dfeUInt(MathUtils.bitsToAddress(vecSize)));
+
+		return array.shiftElementsRight(shiftAmount).pack();
+	}
+}

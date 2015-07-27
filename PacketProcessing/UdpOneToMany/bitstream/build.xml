@@ -8,7 +8,7 @@
 
 	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
 
-	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>  
+	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
@@ -41,8 +41,9 @@
 		</maxjcompiler>
 	</target>
 	
-	<target name="SignExt">
-		<java classname="com.maxeler.examples.udpOffload.udpOffload" failonerror="true" fork="yes">
+	<target name="UdpOneToMany">
+		<java classname="com.maxeler.examples.udpOneToMany" failonerror="true" fork="yes">
+			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>
 	</target>
