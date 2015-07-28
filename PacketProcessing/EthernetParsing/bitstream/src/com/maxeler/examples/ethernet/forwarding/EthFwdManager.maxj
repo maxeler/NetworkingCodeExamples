@@ -1,0 +1,50 @@
+package com.maxeler.examples.ethernet.forwarding;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.DFELink;
+import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.networking.v1.kernel_types.EthernetRXType;
+import com.maxeler.networking.v1.kernel_types.EthernetTXType;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.netlib.EthernetChecksumMode;
+import com.maxeler.networking.v1.managers.netlib.EthernetStream;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+
+
+public class EthFwdManager extends NetworkManager {
+
+	public EthFwdManager(EngineParameters configuration) {
+		super(configuration);
+
+		EthernetStream ethTop1 = addEthernetStream("ethTop1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, EthernetChecksumMode.FlagOnEOF);
+		EthernetStream ethBot1 = addEthernetStream("ethBot1", Max4NetworkConnection.QSFP_BOT_10G_PORT1, EthernetChecksumMode.FlagOnEOF);
+
+		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		pushDefaultClock(netClk);
+
+		DFELink ethRx = ethTop1.getReceiveStream();
+		DFELink ethTx = ethBot1.getTransmitStream();
+
+		EthernetRXType rxLinkType = new EthernetRXType();
+		EthernetTXType txLinkType = new EthernetTXType();
+
+		KernelBlock kernel = addKernel(new EthFwdKernel(makeKernelParameters("fwdKernel"), rxLinkType, txLinkType));
+		kernel.getInput(EthFwdKernel.INPUT) <== ethRx;
+		ethTx <== kernel.getOutput(EthFwdKernel.OUTPUT);
+	}
+
+	public static void main(String[] args) {
+		EthFwdEngineParameters params = new EthFwdEngineParameters(args);
+		EthFwdManager manager = new EthFwdManager(params);
+
+		BuildConfig buildConfig = manager.getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}

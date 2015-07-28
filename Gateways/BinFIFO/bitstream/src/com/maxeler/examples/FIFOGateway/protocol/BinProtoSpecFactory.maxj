@@ -1,0 +1,13 @@
+package com.maxeler.examples.FIFOGateway.protocol;
+
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM;
+import maxpower.network.tcp.manyconn.framer.proto.FramerProtocolSpec;
+import maxpower.network.tcp.manyconn.framer.proto.ProtoSpecFactory;
+
+public class BinProtoSpecFactory implements ProtoSpecFactory {
+	@Override
+	public FramerProtocolSpec create(final TCPFramerSM owner) {
+		return new BinProtoSpec(owner);
+	}
+
+}

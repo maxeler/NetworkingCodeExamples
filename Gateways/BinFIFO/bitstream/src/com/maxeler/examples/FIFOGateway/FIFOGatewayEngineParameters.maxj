@@ -1,0 +1,70 @@
+package com.maxeler.examples.FIFOGateway;
+
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.NetworkManager.TcpNumConnectionsRequired;
+import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+
+public class FIFOGatewayEngineParameters extends EngineParameters {
+	public FIFOGatewayEngineParameters(final String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		declareParam(s_parameterDFE, "DFE model", DataType.DFEMODEL, DFEModel.ISCA);
+		declareParam(s_parameterMaxFileName, DataType.STRING, "BinFIFOGateway");
+		declareParam("target", Target.class, Target.DFE_SIM);
+
+		declareParam("hasStreamStatus", DataType.BOOL, true);
+		declareParam("ethConnection", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		declareParam("numTcpConnectionsRequired", TcpNumConnectionsRequired.class, TcpNumConnectionsRequired.Max1024Connections);
+		declareParam("maxTcpWindowSize", DataType.INT, 64 * 1024);
+	}
+
+	public void applyParamsToManager(final NetworkManager manager) {
+		logParameters(manager);
+
+		manager.addMaxFileConstant("numTcpConnectionsSupported", getNumTcpConnectionsRequired().getNumConnections());
+		manager.addMaxFileConstant("maxTcpWindowSize", getMaxTcpWindowSize());
+		manager.addMaxFileStringConstant("ethConnection", getEthConnection().name());
+		manager.addMaxFileConstant("rxWindowSizeKB", manager.network_config.getTCPReceiveWindowSize(getEthConnection()));
+		manager.addMaxFileConstant("txWindowSizeKB", manager.network_config.getTCPTransmitWindowSize(getEthConnection()));
+
+		final BuildConfig buildConfig = getBuildConfig();
+		buildConfig.setBuildEffort(Effort.VERY_HIGH);
+		manager.setBuildConfig(buildConfig);
+
+		manager.debug.setDebugLevel(new DebugLevel().setHasStreamStatus(hasStreamStatus()));
+	}
+
+	public boolean isSimulation() {
+		return (getTarget() == Target.DFE_SIM);
+	}
+
+	public boolean hasStreamStatus() {
+		return getParam("hasStreamStatus");
+	}
+
+	public Max4NetworkConnection getEthConnection() {
+		return getParam("ethConnection");
+	}
+
+	public MaxTCPVersion getMaxTCPVersion() {
+		return MaxTCPVersion.fromNumConnections(true, getNumTcpConnectionsRequired());
+	}
+
+	public TcpNumConnectionsRequired getNumTcpConnectionsRequired() {
+		return getParam("numTcpConnectionsRequired");
+	}
+
+	public int getMaxTcpWindowSize() {
+		return getParam("maxTcpWindowSize");
+	}
+}

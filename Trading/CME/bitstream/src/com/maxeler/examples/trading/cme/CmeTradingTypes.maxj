@@ -1,0 +1,114 @@
+package com.maxeler.examples.trading.cme;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.mpt.cme.ilink.CmeILinkOrderFormat;
+import com.maxeler.mpt.cme.ilink.CmeILinkResponseFormat;
+import com.maxeler.mpt.cme.mdp.CmeMdpMarketDataFormat;
+import com.maxeler.mpt.core.marketdata.Side;
+
+public class CmeTradingTypes {
+
+	public static final CmeTradingMarketDataFormat cmeTradingMarketDataFormat = new CmeTradingMarketDataFormat(5);
+	public static class CmeTradingMarketDataFormat extends CmeMdpMarketDataFormat {
+		public CmeTradingMarketDataFormat(int numBookLevels) {
+			DFEType mantissaType  = DFETypeFactory.dfeInt(64);
+			DFEType exponentType  = DFETypeFactory.dfeInt(8);
+			DFEType numOrdersType = DFETypeFactory.dfeUInt(16);
+
+			for (Side side : Side.values()) {
+				for (int level = 1; level <= numBookLevels; ++level) {
+					addOrderBookTag(side, level, OrderBookTag.PriceMantissa, mantissaType);
+					addOrderBookTag(side, level, OrderBookTag.PriceExponent, exponentType);
+					addOrderBookTag(side, level, OrderBookTag.Quantity);
+					addOrderBookTag(side, level, OrderBookTag.NumberOfOrders, numOrdersType);
+					addOrderBookTag(side, level, OrderBookTag.IsValid);
+					addOrderBookTag(side, level, OrderBookTag.IsChanged);
+				}
+			}
+
+			addField(Tag.Timestamp);
+			addField(Tag.TimestampValid);
+			addField(Tag.TimestampDoubt);
+			addField(Tag.Feed);
+
+			/*
+			 *
+			 * The way the system works is this:
+			 * When a UDP packet arrives, updates (MDEntries) are extracted from it and pushed to an OrderBook building unit.
+			 * The OrderBook builder might aggregate updates to a single book, based on the MD Entry.
+			 * An update will trigger a book to be output typically, when it's the last of a set of updates for a given security,
+			 * or when it's associated with a trade.
+			 *
+			 * The below fields are associated with the Update (market data entry) that triggered this book.
+			 * If for example, this was a trade summary message, the MDEntryType will be '2' to reflect that it is a Trade.
+			 *
+			 *
+			 */
+
+			addField(Tag.MsgSeqNum);
+			addField(Tag.RptSeq);
+			addField(Tag.TransactTime);
+			addField(Tag.SecurityID);
+			addField(Tag.SecurityIndex);
+			addField(Tag.MDEntryType);
+			addField(Tag.MDUpdateAction);
+			addField(Tag.MDEntryPxMantissa, mantissaType);
+			addField(Tag.MDEntryPxExponent, exponentType);
+			addField(Tag.MDEntrySize);
+
+			addField(Tag.IsLastOfBatch);
+			addField(Tag.IsTrade);
+			addField(Tag.BookReset);
+			addField(Tag.TradeID);
+			addField(Tag.AggressorSide);
+			addField(Tag.MDEntryIndex);
+		}
+
+		private void addOrderBookTag(Side side, int level, OrderBookTag tag) {
+			addOrderBookField(getTagName(side, tag, level), side, level, tag);
+		}
+
+		private void addOrderBookTag(Side side, int level, OrderBookTag tag, DFEType type) {
+			addOrderBookField(getTagName(side, tag, level), side, level, tag, type);
+		}
+
+		public static String getTagName(Side side, OrderBookTag tag, int level) {
+			return String.format("%s_%s_%02d", side, tag, level);
+		}
+	}
+
+	public static final CmeTradingNewOrderSingleFormat cmeTradingNewOrderSingleFormat = new CmeTradingNewOrderSingleFormat();
+	public static class CmeTradingNewOrderSingleFormat extends CmeILinkOrderFormat {
+		public CmeTradingNewOrderSingleFormat() {
+			super(Message.NewOrderSingle);
+
+			// addField(Tag, Length in Bytes)
+			// Expects Strings to be used to save conversion time
+			addField(Tag.Account,       5);
+			addField(Tag.OrderQty,     10);
+			addField(Tag.OrdType,       1);
+			addField(Tag.Price,        19);
+			addField(Tag.Side,          1);
+			addField(Tag.Symbol,        6);
+			addField(Tag.SecurityDesc,  8);
+			addField(Tag.SecurityType,  3);
+			addField(Tag.TimeInForce,   1);
+			addField(Tag.ClOrdID,       7);
+		}
+	}
+
+	public static final CmeTradingResponseFormat cmeTradingResponseFormat = new CmeTradingResponseFormat();
+	public static class CmeTradingResponseFormat extends CmeILinkResponseFormat {
+		public CmeTradingResponseFormat() {
+			super(Message.ExecutionReport);
+			addField(Tag.Price,    19);
+			addField(Tag.OrderQty, DFETypeFactory.dfeUInt(32));
+			addField(Tag.OrderID,  DFETypeFactory.dfeUInt(16));
+			addField(Tag.MsgType,  1);
+		}
+	}
+	public static void main(String [] args) {
+		System.out.print(cmeTradingMarketDataFormat.getFrameFormat().toCStruct());
+	}
+}

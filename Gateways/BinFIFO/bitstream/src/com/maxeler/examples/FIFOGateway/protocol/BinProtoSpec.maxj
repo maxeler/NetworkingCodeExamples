@@ -1,0 +1,59 @@
+package com.maxeler.examples.FIFOGateway.protocol;
+
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM;
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM.FramerStates;
+import maxpower.network.tcp.manyconn.framer.proto.FramerProtocolSpec;
+
+import com.maxeler.maxcompiler.v2.managers.DFEManager;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmValue;
+import com.maxeler.statemachine.utils.SMUtils;
+
+public class BinProtoSpec extends FramerProtocolSpec {
+	private static final int minHeaderSize = 8;
+	private static final int maxMessageLength = 1600;
+	private static final int minMessageLength = 8;
+	private final TCPFramerSM owner;
+
+	protected BinProtoSpec(final TCPFramerSM owner) {
+		super(owner);
+		this.owner = owner;
+	}
+
+	@Override
+	public DFEsmValue verifySignature(final DFEsmValue stagingReg) {
+		return constant.value(true);
+	}
+
+	@Override
+	public DFEsmValue decodeMessageLength(final DFEsmValue stagingReg) {
+		final DFEsmValue decodedLength = SMUtils.byteReverse(SMUtils.extractBytes(stagingReg, 7, 6));
+		final DFEsmValue totalMessageLen = decodedLength;
+		IF (owner.getCurrentState() === FramerStates.PipeMessageLengthDecode) {
+			owner.printf("MessageLengthDecoded: Protocol '" + getProtocolName() + "': totalMessageLength: %d\n",
+					totalMessageLen);
+		}
+		return totalMessageLen;
+	}
+
+	@Override
+	public DFEsmValue validateLength(final DFEsmValue stagingReg) {
+		final DFEsmValue length = SMUtils.byteReverse(SMUtils.extractBytes(stagingReg, 7, 6));
+		return length >= minMessageLength & length <= maxMessageLength;
+	}
+
+	@Override
+	public String getProtocolName() {
+		return "Binary";
+	}
+
+	@Override
+	public void addMaxfileConstants(final DFEManager owner) {
+		owner.addMaxFileConstant(getProtocolName() + "_maxMessageLength", maxMessageLength);
+	}
+
+	@Override
+	public int getMinimumHeaderSizeBytes() {
+		return minHeaderSize;
+	}
+
+}

@@ -1,0 +1,332 @@
+package com.maxeler.examples.tracker;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.managers.DFEManager;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmAssignableValue;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateEnum;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmValue;
+import com.maxeler.maxcompiler.v2.statemachine.manager.DFEsmPushInput;
+import com.maxeler.maxcompiler.v2.statemachine.manager.DFEsmPushOutput;
+import com.maxeler.maxcompiler.v2.statemachine.manager.ManagerStateMachine;
+import com.maxeler.maxcompiler.v2.statemachine.stdlib.Buffer.DFEsmFifoConfig;
+import com.maxeler.maxcompiler.v2.statemachine.stdlib.buffer.DFEsmFifo;
+import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
+import com.maxeler.statemachine.utils.SMUtils;
+
+public class MessageTracker extends ManagerStateMachine {
+	public static final boolean DEBUG_ENABLED = false;
+	public static final String INPUT_FRAME = "input";
+	public static final String OUTPUT_MSGS = "output";
+
+	private final UDPOneToOneRXType udpType;
+	private final DFEStructType inputType;
+	private final DFEsmPushInput input;
+	private final DFEsmPushOutput output;
+	private final DFEsmStateEnum<States> currentState;
+	private final DFEsmStateValue efCount;
+	private final DFEsmStateValue efPos;
+	private final DFEsmStateValue wordPos;
+	private final DFEsmStateValue outputReg;
+	private final DFEsmStateValue outputRegValid;
+	private final DFEsmStateValue outputStalling;
+	private final DFEsmStateValue nextMsgStartWord;
+	private final DFEsmStateValue nextAlignment;
+	private final DFEsmStateValue currentMsgEndWord;
+	private final DFEsmFifo inputFifo;
+	private final DFEsmStateValue frameEndedLastCycle;
+	private final DFEsmStateValue newMessageStarting;
+	private final DFEsmStateValue currentAlignment;
+	private final DFEsmStateValue cycleCounter;
+
+
+
+	public static final OutputType outputType = new OutputType();
+
+	public static class OutputType extends DFEStructType {
+		public static final String DATA = "data";
+		public static final String ALIGNMENT = "alignment";
+		public static final String PADDING = "padding";
+		public static final String SOM = "newMessage";
+		public static final String EOM = "eom";
+		public OutputType() {
+			super(
+					DFEStructType.sft(DATA, DFETypeFactory.dfeRawBits(64)),
+					DFEStructType.sft(ALIGNMENT, DFETypeFactory.dfeUInt(3)),
+					DFEStructType.sft(PADDING, DFETypeFactory.dfeBool()),
+					DFEStructType.sft(SOM, DFETypeFactory.dfeBool()),
+					DFEStructType.sft(EOM, DFETypeFactory.dfeBool())
+				);
+		}
+	}
+
+	private enum States {
+		FIRST,
+		TRACK,
+		GAP
+	}
+
+	public MessageTracker(final DFEManager owner) {
+		super(owner);
+
+		udpType = new UDPOneToOneRXType();
+		inputType = udpType.getDFEStructType();
+
+		final int stallLatency = 16;
+		input = io.pushInput(INPUT_FRAME, dfeUInt(inputType.getTotalBits()), 16);
+		final int inputFifoDepth = 512;
+		final DFEsmFifoConfig fc = new DFEsmFifoConfig();
+		fc.setProgrammableFull(inputFifoDepth - (2*stallLatency));
+		fc.setIsFirstWordFallThrough();
+		inputFifo = buffer.fifo(dfeUInt(inputType.getTotalBits()), inputFifoDepth, fc);
+
+
+		output = io.pushOutput(OUTPUT_MSGS, dfeUInt(outputType.getTotalBits()), 4);
+
+		currentState = state.enumerated(States.class, States.FIRST);
+		efCount = state.value(dfeUInt(16));
+		efPos = state.value(dfeUInt(16));
+		wordPos = state.value(dfeUInt(16));
+		nextMsgStartWord = state.value(dfeUInt(16));
+		nextAlignment = state.value(dfeUInt(3));
+		currentMsgEndWord = state.value(dfeUInt(16));
+		newMessageStarting = state.value(dfeBool());
+		currentAlignment = state.value(dfeUInt(3));
+
+		outputReg = state.value(dfeUInt(outputType.getTotalBits()));
+		outputRegValid = state.value(dfeBool(), false);
+		outputStalling = state.value(dfeBool(), true);
+		frameEndedLastCycle = state.value(dfeBool(), false);
+		cycleCounter = state.value(dfeUInt(64), 0);
+	}
+
+	private DFEsmValue byteOffsetToWordOffset(final DFEsmValue byteOff) {
+		// Each word is 8 bytes, so divide by 8
+		return byteOff.slice(3, byteOff.getType().getTotalBits() - 3).cast(byteOff.getType());
+	}
+
+	private DFEsmValue byteOffsetToAlignment(final DFEsmValue byteOff) {
+		// This would be the modulo 8 of the byte offset
+		return byteOff.slice(0, 3).cast(dfeUInt(3));
+	}
+
+	@Override
+	protected void nextState() {
+		cycleCounter.next <== cycleCounter + 1;
+		outputStalling.next <== output.stall;
+		outputRegValid.next <== false;
+
+		inputFifo.input.writeEnable <== input.valid;
+		inputFifo.input.dataIn <== input;
+
+		final DFEsmValue inputValid = ~(inputFifo.output.empty | outputStalling);
+		final DFEsmValue inputData = SMUtils.extractField(inputFifo.output.dataOut, inputType, udpType.getData());
+		final DFEsmValue inputEof = SMUtils.extractField(inputFifo.output.dataOut, inputType, udpType.getEOF());
+//		DFEsmValue inputSof = SMUtils.extractField(input, inputType, udpType.getSOF());
+//		DFEsmValue inputMod = SMUtils.extractField(input, inputType, udpType.getMod());
+
+		SMUtils.assignField(outputReg.next, outputType, OutputType.DATA, inputData);
+		SMUtils.assignField(outputReg.next, outputType, OutputType.ALIGNMENT, 0);
+		SMUtils.assignField(outputReg.next, outputType, OutputType.PADDING, false);
+		SMUtils.assignField(outputReg.next, outputType, OutputType.SOM, false);
+		SMUtils.assignField(outputReg.next, outputType, OutputType.EOM, false);
+		inputFifo.output.readEnable <== false;
+
+		outputRegValid.next <== false;
+
+		/*
+		 * On the first cycle, the message starts at offset 4
+		 */
+		final int firstMessageAlignment = 4;
+		final int msgOverhead = 2 + 4 + 1 + 3; // #EF + Field A + Field B + Field C size in bytes (10 bytes)
+		final int efSize = 6;
+		DFEsmValue efCount_s;
+		DFEsmValue nextMsgByteOffset;
+		DFEsmValue nextMsgAlignment_s;
+		DFEsmValue nextMsgStartWord_s;
+
+		newMessageStarting.next <== false;
+		frameEndedLastCycle.next <== false;
+		SWITCH (currentState) {
+			CASE (States.FIRST) {
+				SMUtils.assignField(outputReg.next, outputType, OutputType.SOM, true);
+				SMUtils.assignField(outputReg.next, outputType, OutputType.ALIGNMENT, firstMessageAlignment);
+
+
+				efCount_s = SMUtils.extractBytes(inputData, 5, 4);
+				efCount.next <== efCount_s;
+				efPos.next <== 1;
+				wordPos.next <== 1;
+
+				/*
+				 * Calculate where the current message ends and the next message begins
+				 */
+				nextMsgByteOffset = (firstMessageAlignment + msgOverhead) + efSize * efCount_s;
+				nextMsgAlignment_s = byteOffsetToAlignment(nextMsgByteOffset);
+				currentMsgEndWord.next <==byteOffsetToWordOffset(nextMsgByteOffset);
+
+				IF (nextMsgAlignment_s === 0)
+					currentMsgEndWord.next <== byteOffsetToWordOffset(nextMsgByteOffset) - 1;
+				nextMsgStartWord.next <== byteOffsetToWordOffset(nextMsgByteOffset);
+				nextAlignment.next <== nextMsgAlignment_s;
+
+				IF (inputValid) {
+					inputFifo.output.readEnable <== true;
+					outputRegValid.next <== true;
+					currentState.next <== States.TRACK;
+					printf("efCount_s = %d\n", efCount_s);
+					printStateTransition();
+				}
+
+			}
+
+			CASE (States.TRACK) {
+				IF (inputValid) {
+					inputFifo.output.readEnable <== true;
+					outputRegValid.next <== true;
+					wordPos.next <== wordPos + 1;
+
+//					printf("wordPos = %d, currentMsgEndWord = %d\n", wordPos, currentMsgEndWord);
+
+					IF (newMessageStarting) {
+						SMUtils.assignField(outputReg.next, outputType, OutputType.SOM, true);
+						SMUtils.assignField(outputReg.next, outputType, OutputType.ALIGNMENT, currentAlignment);
+					}
+
+					IF (wordPos === currentMsgEndWord) {
+						/*
+						 * 0 1 2 3 4 5 6 7
+						 *     X           // New #ExtraField starts at offest !== 0
+						 *     		       // Current word needs to be output twice, once with END_OF_MESSAGE, second time with NEW_MESSAGE
+						 *
+						 */
+						printf("currentMsgEndWord = %d, nextMsgStartWord = %d\n", currentMsgEndWord, nextMsgStartWord);
+						IF (currentMsgEndWord === nextMsgStartWord) {
+							inputFifo.output.readEnable <== false;
+							wordPos.next <== wordPos;
+						}
+
+						SMUtils.assignField(outputReg.next, outputType, OutputType.EOM, true);
+
+						currentState.next <== States.GAP;
+					}
+
+					frameEndedLastCycle.next <== inputEof;
+
+					IF (inputEof) {
+						// Last word in frame
+						inputFifo.output.readEnable <== true; // drain it!
+						currentState.next <== States.GAP;
+					}
+
+					IF (inputEof | wordPos === currentMsgEndWord) {
+						printStateTransition();
+					}
+					printf("wordPos = %d\n", wordPos);
+				}
+			}
+
+			/*
+			 * Insert 1 cycle of Gap, so that downstream kernel can realign the data.
+			 * Hopefully, the average throughput will be good enough
+			 * Optimization: do some filtering in the Track state and avoid inserting Gaps when the data is not interesting
+			 */
+			CASE (States.GAP) {
+				outputRegValid.next <== true;
+				SMUtils.assignField(outputReg.next, outputType, OutputType.PADDING, true);
+				SMUtils.assignField(outputReg.next, outputType, OutputType.EOM, true);
+
+
+				efCount_s = extractExtraFieldCount(inputData, nextAlignment);
+				nextMsgByteOffset = nextAlignment.cast(dfeUInt(16)) + msgOverhead + efSize * efCount_s;
+				nextMsgAlignment_s = byteOffsetToAlignment(nextMsgByteOffset);
+
+
+				nextMsgStartWord_s = wordPos + byteOffsetToWordOffset(nextMsgByteOffset);
+
+//				printf("wordPos = %d, nextAlignment = %d, efCount_s = %d --> nextMsgByteOffset = %d, nextMsgStartWord_s = %d\n",
+//						wordPos, nextAlignment, efCount_s, nextMsgByteOffset, nextMsgStartWord_s);
+
+				nextMsgStartWord.next <== nextMsgStartWord_s;
+				nextAlignment.next <== nextMsgAlignment_s;
+				currentAlignment.next <== nextAlignment; // This is the alignment for the message that is about to start
+
+				currentMsgEndWord.next <== nextMsgStartWord_s;
+				IF (nextMsgAlignment_s === 0)
+					currentMsgEndWord.next <== nextMsgStartWord_s - 1;
+
+				printf("nextMsgStartWord = %d, nextAlignment = %d\n", nextMsgStartWord, nextAlignment);
+
+				newMessageStarting.next <== true;
+
+				IF (frameEndedLastCycle) {
+					currentState.next <== States.FIRST;
+				} ELSE {
+					currentState.next <== States.TRACK;
+				}
+				printStateTransition();
+			}
+		}
+	}
+
+	public DFEsmValue extractExtraFieldCount(final DFEsmValue data, final DFEsmValue alignment) {
+		/*
+		 * ExtraField Count can be at bytes 0-1, 2-3, 4-5, 6-7
+		 * We can just Mux it out of the word
+		 */
+
+		final DFEsmAssignableValue efCount = assignable.value(dfeUInt(16));
+
+
+		SWITCH (alignment) {
+			CASE (2) {
+				efCount <== SMUtils.extractBytes(data, 3, 2);
+			}
+
+			CASE (4) {
+				efCount <== SMUtils.extractBytes(data, 5, 4);
+			}
+
+			CASE (6) {
+				efCount <== SMUtils.extractBytes(data, 7, 6);
+			}
+
+			OTHERWISE {
+				efCount <== SMUtils.extractBytes(data, 1, 0);
+			}
+		}
+
+		return efCount;
+	}
+
+	@Override
+	protected void outputFunction() {
+		output <== outputReg;
+		output.valid <== outputRegValid;
+		input.stall <== inputFifo.input.progFull;
+
+		IF (outputRegValid) {
+			printf("Output: Data = 0x%x, Som = %d, Eom = %d, Alignment = %d, isPadding = %d\n",
+					SMUtils.extractField(outputReg, outputType, OutputType.DATA),
+					SMUtils.extractField(outputReg, outputType, OutputType.SOM),
+					SMUtils.extractField(outputReg, outputType, OutputType.EOM),
+					SMUtils.extractField(outputReg, outputType, OutputType.ALIGNMENT),
+					SMUtils.extractField(outputReg, outputType, OutputType.PADDING));
+		}
+	}
+
+	public void printStateTransition() {
+		if (DEBUG_ENABLED) {
+			debug.simPrintf("%StateMachine%: [%d] %s -> %s\n", cycleCounter, currentState, currentState.next);
+		}
+	}
+
+	public void printf(final String format, final Object ... args) {
+		if (DEBUG_ENABLED) {
+			debug.simPrintf("%StateMachine%: [%d] [%s]: ", cycleCounter, currentState);
+			debug.simPrintf(format, args);
+		}
+	}
+
+}

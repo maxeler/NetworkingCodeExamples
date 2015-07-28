@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>UdpOneToManyBitstream</name>
+	<comment></comment>
+	<manageMaxCompiler>false</manageMaxCompiler>
+	<manageMaxGenFD>false</manageMaxGenFD>
+	<manageMaxBlox>false</manageMaxBlox>
+	<maxelerVersion></maxelerVersion>
+	<maxelerBuildSystemVersion></maxelerBuildSystemVersion>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+	</natures>
+</projectDescription>

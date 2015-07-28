@@ -1,0 +1,73 @@
+package com.maxeler.examples.trading.cme;
+
+
+import com.maxeler.maxcompiler.v2.build.ApplicationParameters;
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.build.EngineParameters.Target;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+
+public class CmeTradingEngineParameters extends ApplicationParameters {
+
+	public CmeTradingEngineParameters(String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		 declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
+		 declareParam("target", Target.class, Target.DFE);
+		 declareParam("hasStreamStatus", DataType.BOOL, true);
+		 declareParam("mdConnectionA", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		 declareParam("mdConnectionB", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_BOT_10G_PORT1);
+		 declareParam("orderEntryConnection", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+	}
+
+	public boolean isSimulation() {
+		return getTarget() == Target.DFE_SIM;
+	}
+
+	public Target getTarget() {
+		return getParam("target");
+	}
+
+	public boolean hasStreamStatus() {
+		return getParam("hasStreamStatus");
+	}
+
+
+	@Override
+	protected void deriveParameters() {
+
+	}
+
+	@Override
+	public String getBuildName() {
+		return "CmeTrading";
+	}
+
+	@Override
+	public DFEModel getDFEModel() {
+		return getParam("board");
+	}
+
+	@Override
+	protected void validate() {
+	}
+
+	public EngineParameters getEngineParams() {
+		return new EngineParameters(getBuildName(), getDFEModel(), getTarget());
+	}
+
+	public Max4NetworkConnection getMdConnectionA() {
+		return getParam("mdConnectionA");
+	}
+
+	public Max4NetworkConnection getMdConnectionB() {
+		return getParam("mdConnectionB");
+	}
+
+	public Max4NetworkConnection getOrderEntryConnection() {
+		return getParam("orderEntryConnection");
+	}
+}

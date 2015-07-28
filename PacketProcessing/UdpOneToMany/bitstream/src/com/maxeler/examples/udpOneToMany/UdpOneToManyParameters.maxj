@@ -1,0 +1,57 @@
+package com.maxeler.examples.udpOneToMany;
+
+
+import com.maxeler.maxcompiler.v2.build.ApplicationParameters;
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.build.EngineParameters.Target;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+
+public class UdpOneToManyParameters extends ApplicationParameters {
+
+	public UdpOneToManyParameters(final String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		 declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
+		 declareParam("target", Target.class, Target.DFE_SIM);
+		 declareParam("hasStreamStatus", DataType.BOOL, true);
+	}
+
+	public boolean isSimulation() {
+		return getTarget() == Target.DFE_SIM;
+	}
+
+	public Target getTarget() {
+		return getParam("target");
+	}
+
+	public boolean hasStreamStatus() {
+		return getParam("hasStreamStatus");
+	}
+
+
+	@Override
+	protected void deriveParameters() {
+
+	}
+
+	@Override
+	public String getBuildName() {
+		return "UdpOneToMany";
+	}
+
+	@Override
+	public DFEModel getDFEModel() {
+		return getParam("board");
+	}
+
+	@Override
+	protected void validate() {
+	}
+
+	public EngineParameters getEngineParams() {
+		return new EngineParameters(getBuildName(), getDFEModel(), getTarget());
+	}
+}

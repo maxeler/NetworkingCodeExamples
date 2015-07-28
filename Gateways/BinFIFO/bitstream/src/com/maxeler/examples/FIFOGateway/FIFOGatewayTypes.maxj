@@ -1,0 +1,71 @@
+package com.maxeler.examples.FIFOGateway;
+
+import maxpower.network.tcp.manyconn.framer.TCPFramerConstants.FramerErrorCodes;
+import maxpower.network.tcp.manyconn.framer.TCPFramerSM.FramerStates;
+import maxpower.network.tcp.manyconn.framer.TCPFramerTypes.TCPFramerLinkType;
+import maxpower.network.tcp.manyconn.framer.TCPInterfaceTypes;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+import com.maxeler.networking.types.TCPManyConnectionsTypes;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.networking.v1.managers.blocks.MaxTCPVersion;
+
+public class FIFOGatewayTypes {
+
+	public final TCPManyConnectionsTypes tcpTypes;
+	public final TCPFramerLinkType fixFramerLinkType;
+	public final SimpleFramedLinkType simpleLinkType = new SimpleFramedLinkType();
+	public final InboundHeaderType inboundHeaderType = new InboundHeaderType();
+	public final OutboundHeaderType outboundHeaderType = new OutboundHeaderType();
+
+	public FIFOGatewayTypes(final MaxTCPVersion tcpVersion) {
+		this.tcpTypes = new TCPManyConnectionsTypes(tcpVersion);
+		fixFramerLinkType = new TCPFramerLinkType(tcpTypes);
+	}
+
+	public static class InboundHeaderType extends DFEStructType {
+		public static final String SOCKET_NUM = "socket_num";
+		public static final String CONTAINS_DATA = "containsData";
+		public static final String CONNECTION_STATE_VALID = "connectionStateValid";
+		public static final String CONNECTION_STATE = "connectionState";
+		public static final String ERROR_CODE = "errorCode";
+		public static final String CURRENT_STATE = "currentState";
+		public static final String LEVEL = "level";
+		public static final String PROTOCOL_ID = "protocolID";
+		public static final String PADDING1 = "padding";
+		public static final String PADDING14 = "padding14";
+
+		public InboundHeaderType() {
+			super(
+					sft(SOCKET_NUM, DFETypeFactory.dfeUInt(16)),
+					sft(ERROR_CODE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(FramerErrorCodes.values().length))),
+					sft(CONNECTION_STATE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(TCPInterfaceTypes.ConnectionStates.values().length))),
+					sft(CONNECTION_STATE_VALID, DFETypeFactory.dfeBool()),
+					sft(CURRENT_STATE, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(FramerStates.values().length))),
+					sft(CONTAINS_DATA, DFETypeFactory.dfeBool()),
+					sft(PROTOCOL_ID, DFETypeFactory.dfeBool()),
+					sft(PADDING1, DFETypeFactory.dfeBool()),
+					sft(LEVEL, DFETypeFactory.dfeInt(MathUtils.bitsToRepresentSigned(TCPInterfaceTypes.maxWindowMemorySizeBytes))),
+					sft(PADDING14, DFETypeFactory.dfeUInt(14))
+				);
+		}
+	}
+
+	public static class OutboundHeaderType extends DFEStructType {
+		public static final String SOCKET_NUM = "socket_num";
+		public static final String PADDING = "padding";
+
+		public OutboundHeaderType() {
+			super(
+					sft(SOCKET_NUM, DFETypeFactory.dfeUInt(16)),
+					sft(PADDING, DFETypeFactory.dfeUInt(48)));
+		}
+	}
+
+	public static void main(final String[] args) {
+		StructUtils.printDFEStructType(new FIFOGatewayTypes(MaxTCPVersion.TCP_1KC_V2).inboundHeaderType);
+	}
+}
