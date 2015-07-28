@@ -1,0 +1,288 @@
+package com.maxeler.examples.ethernet.forwarding;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Count.WrapMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+
+public class EthFwdKernel extends Kernel {
+	public static final String INPUT = "frameIn";
+	public static final String OUTPUT = "frameOut";
+
+	EthFwdKernel(KernelParameters parameters, FramedLinkType rxLinkType, FramedLinkType txLinkType) {
+		super(parameters);
+
+		flush.disabled();
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
+				rxLinkType.getDFEStructType(),
+				rxLinkType.getDFEStructType().getPositionForField(rxLinkType.getEOF()));
+
+		/*
+		 * Forward back only UDP frames
+		 */
+
+		DFEVar valid = input.valid;
+		DFEVar wordData = input.data[rxLinkType.getData()];
+		DFEVar isStart = input.valid & (DFEVar)input.data[rxLinkType.getSOF()];
+
+		FieldDesc ETHERTYPE = new FieldDesc(dfeUInt(16), 12);
+		FieldDesc IPPROTO = new FieldDesc(dfeUInt(8), 14+9);
+
+		FieldDesc SRC_MAC = new FieldDesc(dfeUInt(48), 6);
+		FieldDesc DST_MAC = new FieldDesc(dfeUInt(48), 0);
+
+		FieldDesc SRC_IP = new FieldDesc(dfeUInt(32), 26);
+		FieldDesc DST_IP = new FieldDesc(dfeUInt(32), 30);
+
+		FieldDesc IP_CHECKSUM = new FieldDesc(dfeUInt(16), 24);
+
+//		FieldDesc SRC_UDP_PORT = new FieldDesc(dfeUInt(16), 34);
+		FieldDesc DST_UDP_PORT = new FieldDesc(dfeUInt(16), 36);
+		FieldDesc UDP_CHECKSUM = new FieldDesc(dfeUInt(16), 40);
+
+//		DFEVar srcMac = captureField(isStart, wordData, SRC_MAC);
+//		DFEVar dstMac = captureField(isStart, wordData, DST_MAC);
+
+		DFEVar etherType = captureField(isStart, wordData, ETHERTYPE);
+		DFEVar ipProtocol = captureField(isStart, wordData, IPPROTO);
+
+		DFEVar srcIp = captureField(isStart, wordData, SRC_IP);
+		DFEVar dstIp = captureField(isStart, wordData, DST_IP);
+		DFEVar ipChecksum = captureField(isStart, wordData, IP_CHECKSUM);
+
+//		DFEVar srcPort = captureField(isStart, wordData, SRC_UDP_PORT);
+		DFEVar dstPort = captureField(isStart, wordData, DST_UDP_PORT);
+
+		DFEVar udpChecksum = captureField(isStart, wordData, UDP_CHECKSUM);
+
+//		wordData = replaceField(isStart, wordData, SRC_UDP_PORT, dstPort);
+//		wordData = replaceField(isStart, wordData, DST_UDP_PORT, srcPort);
+
+
+		DFEVar localMac = io.scalarInput("localMac", dfeRawBits(48));
+		DFEVar forwardMac = io.scalarInput("forwardMac", dfeRawBits(48));
+		DFEVar localIp = io.scalarInput("localIp", dfeUInt(32));
+		DFEVar forwardIp = io.scalarInput("forwardIp", dfeUInt(32));
+		DFEVar port = io.scalarInput("port", dfeUInt(16));
+
+
+
+		wordData = replaceField(isStart, wordData, DST_IP, forwardIp);
+
+		/*
+		 * Change checksums.
+		 */
+
+		ipChecksum = to32(~ipChecksum);
+		ipChecksum -= sum16(srcIp);
+		ipChecksum -= sum16(dstIp);
+		ipChecksum += sum16(localIp);
+		ipChecksum += sum16(forwardIp);
+		ipChecksum = wrap16(ipChecksum);
+		ipChecksum = ~ipChecksum;
+
+
+		udpChecksum = to32(~udpChecksum);
+		udpChecksum -= sum16(srcIp);
+		udpChecksum -= sum16(dstIp);
+		udpChecksum += sum16(localIp);
+		udpChecksum += sum16(forwardIp);
+		udpChecksum = wrap16(udpChecksum);
+		udpChecksum = ~udpChecksum;
+
+		udpChecksum = udpChecksum === 0 ? ~udpChecksum : udpChecksum;
+
+
+		wordData = replaceField(isStart, wordData, SRC_MAC, localMac);
+		wordData = replaceField(isStart, wordData, DST_MAC, forwardMac);
+
+		wordData = replaceField(isStart, wordData, SRC_IP, localIp);
+		wordData = replaceField(isStart, wordData, DST_IP, forwardIp);
+
+		wordData = replaceField(isStart, wordData, IP_CHECKSUM, ipChecksum);
+		wordData = replaceField(isStart, wordData, UDP_CHECKSUM, udpChecksum);
+
+
+		/*
+		 * An example using some arbitrary set of conditions:
+		 *    Only UDP Packets with a Destination port equal to 'port'
+		 */
+		DFEVar shouldForward = byteReverse(etherType) === 0x0800; // ETHERTYPE_IP
+		shouldForward = shouldForward & (ipProtocol === 17); // IPPROTO_UDP
+		shouldForward = shouldForward & (byteReverse(dstPort) === port); // port is in Big Endian
+
+		DFEStruct outputStruct = txLinkType.getDFEStructType().newInstance(this);
+		outputStruct[txLinkType.getData()] <== wordData;
+		outputStruct[txLinkType.getSOF()] <== input.data[rxLinkType.getSOF()];
+		outputStruct[txLinkType.getEOF()] <== input.data[rxLinkType.getEOF()];
+		outputStruct[txLinkType.getMod()] <== input.data[rxLinkType.getMod()];
+
+		DFEVar frameCount = control.count.makeCounter(
+				control.count.makeParams(64)
+					.withEnable(isStart)
+					.withInitValue(0)
+				).getCount();
+
+		debug.simPrintf(isStart, "Frame [%d]: etherType = 0x%x, ipProtocol = %d, dstPort = %d --> shouldForward: %d\n",
+				frameCount,
+				byteReverse(etherType), ipProtocol, byteReverse(dstPort),
+				shouldForward);
+
+
+		io.output(OUTPUT, txLinkType.getDFEStructType(), valid & shouldForward) <== outputStruct;
+	}
+
+	private DFEVar to32(DFEVar v) {
+		int w = v.getType().getTotalBits();
+		if (w < 32) {
+			v = constant.var(dfeUInt(32-w), 0) # v;
+		}
+
+		return v.cast(dfeUInt(32));
+	}
+
+	private DFEVar wrap16(DFEVar v) {
+		return sum16(sum16(v)).slice(0, 16).cast(dfeUInt(16));
+	}
+
+	private DFEVar sum16(DFEVar field) {
+		DFEVar sum = constant.var(dfeUInt(32), 0);
+
+		for (int i=0; i < (field.getType().getTotalBits() / 16); i++) {
+			sum += to32(field.slice(i * 16, 16));
+		}
+
+
+		return sum;
+	}
+
+	private static DFEVar byteReverse(DFEVar v) {
+		int size = v.getType().getTotalBits() / 8;
+
+		DFEVar r = null;
+
+		for (int i=0; i < size; i++) {
+			DFEVar b = v.slice(i*8, 8);
+			if (i == 0) r = b;
+			else r = r # b;
+		}
+
+		return r.cast(v.getType());
+	}
+
+	private static class FieldDesc {
+		private final int offset;
+		private final DFEType type;
+
+		public FieldDesc(DFEType type, int offset) {
+			this.type = type;
+			this.offset = offset;
+		}
+
+		public DFEType getType() { return type; }
+		public int getByteOffset() { return offset; }
+	}
+
+	public DFEVar captureField(DFEVar isStart, DFEVar data, FieldDesc field) {
+		int wordSizeBytes = data.getType().getTotalBits() / 8;
+		int fieldSizeBytes = field.getType().getTotalBits() / 8;
+		int offsetMod = field.getByteOffset() % wordSizeBytes;
+		int fieldSizeWords = MathUtils.ceilDivide(fieldSizeBytes, wordSizeBytes) + (offsetMod + fieldSizeBytes > wordSizeBytes ? 1 : 0);
+		int startWord = field.getByteOffset() / wordSizeBytes;
+
+
+		DFEVar theWord = stream.offset(data, startWord);
+
+		for (int w=1; w < fieldSizeWords; w++) {
+			theWord = stream.offset(data, startWord + w) # theWord;
+		}
+
+		DFEVar theField = theWord.slice(offsetMod * 8, fieldSizeBytes * 8);
+		theField = Reductions.streamHold(theField, isStart);
+
+		return theField.cast(field.getType());
+	}
+
+	public DFEVar replaceField(DFEVar isStart, DFEVar wordStream, FieldDesc fieldToReplace, DFEVar newFieldData) {
+		int wordSizeBits = wordStream.getType().getTotalBits();
+		int wordSizeBytes = wordSizeBits / 8;
+		int fieldSizeBits = fieldToReplace.getType().getTotalBits();
+		int fieldSizeBytes = fieldSizeBits / 8;
+		int offsetMod = fieldToReplace.getByteOffset() % wordSizeBytes;
+		int fieldSizeWords = MathUtils.ceilDivide(fieldSizeBytes, wordSizeBytes);
+		int neededWords = fieldSizeWords + (offsetMod + fieldSizeBytes > wordSizeBytes ? 1 : 0);
+		int startWord = fieldToReplace.getByteOffset() / wordSizeBytes;
+
+		List<DFEVar> newFieldWords = new ArrayList<DFEVar>();
+
+		int pos = 0;
+		int remBits = fieldSizeBits;
+		boolean firstWord = true;
+		while (remBits > 0) {
+
+			int bitsNow = Math.min(remBits, wordSizeBits - (firstWord ? (offsetMod*8) : 0));
+			DFEVar fieldSlice = newFieldData.slice(pos, bitsNow);
+
+			if (firstWord) {
+				if (offsetMod != 0) {
+					fieldSlice = fieldSlice # wordStream.slice(0, offsetMod * 8);
+				}
+
+				int currentFieldSize = fieldSlice.getType().getTotalBits();
+
+				if (currentFieldSize < wordSizeBits) {
+					fieldSlice = wordStream.slice(currentFieldSize, wordSizeBits - currentFieldSize) # fieldSlice;
+				}
+			} else {
+				if (remBits < wordSizeBits) {
+					fieldSlice = wordStream.slice(remBits, wordSizeBits - remBits) # fieldSlice;
+				}
+			}
+
+
+			newFieldWords.add(fieldSlice);
+			remBits -= bitsNow;
+			pos += bitsNow;
+			firstWord = false;
+		}
+
+
+		DFEVar count = control.count.makeCounter(
+				control.count.makeParams(MathUtils.bitsToRepresent(startWord + neededWords + 1))
+					.withWrapMode(WrapMode.STOP_AT_MAX)
+					.withMax(startWord + neededWords + 1)
+					.withReset(isStart)).getCount();
+		DFEVar fieldStart = count === startWord;
+		DFEVar inField = count < (startWord + neededWords) & count >= startWord;
+//		DFEVar fieldEnd = count === (startWord + neededWords - 1);
+
+		DFEVar newField;
+
+		if (newFieldWords.size() > 1) {
+			DFEVar newFieldWordSelect = control.count.makeCounter(
+						control.count.makeParams(MathUtils.bitsToAddress(newFieldWords.size()))
+							.withWrapMode(WrapMode.STOP_AT_MAX)
+							.withMax(newFieldWords.size())
+							.withReset(fieldStart)
+					).getCount();
+			newField = control.mux(newFieldWordSelect, newFieldWords);
+		} else {
+			newField = newFieldWords.get(0);
+		}
+
+
+		DFEVar replaced = inField ? newField : wordStream;
+
+		return replaced;
+	}
+}

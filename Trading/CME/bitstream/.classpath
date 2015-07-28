@@ -2,8 +2,7 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/maxeda"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/maxpower"/>
-    <classpathentry combineaccessrules="false" kind="src" path="/maxmpt-bitstreams"/>
+	<classpathentry kind="lib" path="/network-raid/opt/maxcompiler-2015.1/lib/MaxCompiler.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
