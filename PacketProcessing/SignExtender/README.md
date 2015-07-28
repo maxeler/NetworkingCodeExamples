@@ -1,4 +1,4 @@
-# PacketProcessing example
+# Sign Extension Example
 
 An example project, which will receive packets containing 3 signed integer values of variable lengths, convert them to a fixed size and pass them to the CPU. Since the values are signed, we must consider sign extension.
 
