@@ -26,9 +26,9 @@ public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
 			INPUT,
 			INPUT_TYPE.getDFEStructType(),
 			constant.var(true),
-			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToOneTXType.EOF),
+			INPUT_TYPE.getDFEStructType().getPositionForField(SimpleFramedLinkType.EOF),
 			DelimiterMode.EOF_POSITION,
-			3,
+			1,
 			NonBlockingMode.NO_TRICKLING);
 
 		final DFEStruct dataIn = src.data;
@@ -56,7 +56,7 @@ public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
 		out[UDPOneToOneTXType.EOF] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.EOF], 1);
 		out[UDPOneToOneTXType.MOD] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.MOD], 1);
 		out[UDPOneToOneTXType.DATA] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.DATA], 1);
-        out[UDPOneToOneTXType.SOCKET] <== Reductions.streamHold(socket, sof);
+		out[UDPOneToOneTXType.SOCKET] <== Reductions.streamHold(socket, sof);
 
 		final DFEVar outputValid = inputValid & stream.offset(inputValid, 1);
 		io.output(OUTPUT, out, OUTPUT_TYPE.getDFEStructType(), outputValid);

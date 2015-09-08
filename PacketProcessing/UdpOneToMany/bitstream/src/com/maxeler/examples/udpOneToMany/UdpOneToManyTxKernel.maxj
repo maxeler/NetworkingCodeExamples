@@ -26,9 +26,9 @@ public class UdpOneToManyTxKernel extends ThroughputFramedKernel {
 			INPUT,
 			INPUT_TYPE.getDFEStructType(),
 			constant.var(true),
-			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToManyTXType.EOF),
+			INPUT_TYPE.getDFEStructType().getPositionForField(SimpleFramedLinkType.EOF),
 			DelimiterMode.EOF_POSITION,
-			3,
+			1,
 			NonBlockingMode.NO_TRICKLING);
 
 		final DFEStruct dataIn = src.data;

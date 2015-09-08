@@ -26,7 +26,7 @@ public class UdpOneToManyRxKernel extends ThroughputFramedKernel {
 			constant.var(true),
 			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToManyRXType.EOF),
 			DelimiterMode.EOF_POSITION,
-			3,
+			1,
 			NonBlockingMode.NO_TRICKLING);
 
 		final DFEStruct dataIn = src.data;
@@ -54,7 +54,7 @@ public class UdpOneToManyRxKernel extends ThroughputFramedKernel {
 
 		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
 		out[SimpleFramedLinkType.SOF] <== dataIn[UDPOneToManyRXType.SOF];
-		out[SimpleFramedLinkType.EOF] <== stream.offset((DFEVar)dataIn[UDPOneToManyRXType.EOF], -2);
+		out[SimpleFramedLinkType.EOF] <== stream.offset((DFEVar)dataIn[UDPOneToManyRXType.EOF] & inputValid, -2);
 		out[SimpleFramedLinkType.MOD] <== stream.offset((DFEVar)dataIn[UDPOneToManyRXType.MOD], -2);
 		out[SimpleFramedLinkType.DATA] <== insertMetadata ? metadata : stream.offset((DFEVar)dataIn[UDPOneToManyRXType.DATA], -2);
 
