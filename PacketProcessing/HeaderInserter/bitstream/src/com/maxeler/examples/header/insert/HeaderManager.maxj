@@ -1,0 +1,38 @@
+package com.maxeler.examples.header.insert;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class HeaderManager extends NetworkManager {
+
+	public HeaderManager(EngineParameters configuration) {
+		super(configuration);
+
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		SimpleFramedLinkType linkType = new SimpleFramedLinkType();
+
+		KernelBlock kernel = addKernel(new HeaderKernel(makeKernelParameters("headerKernel"), linkType));
+		kernel.getInput(HeaderKernel.INPUT) <== addFramedStreamFromCPU("inFrame", linkType);
+		addFramedStreamToCPU("outFrame", linkType) <== kernel.getOutput(HeaderKernel.OUTPUT);
+	}
+
+	public static void main(String[] args) {
+		HeaderEngineParameters params = new HeaderEngineParameters(args);
+		HeaderManager manager = new HeaderManager(params);
+
+		BuildConfig buildConfig = manager.getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}
