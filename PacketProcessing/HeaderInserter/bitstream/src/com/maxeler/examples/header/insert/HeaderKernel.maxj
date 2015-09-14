@@ -345,7 +345,7 @@ public class HeaderKernel extends Kernel {
 		 *  We need to take the data and change it to start at index 3
 		 *  7 6 5 4 3 2 1 0
 		 *  D0D0D0D0D0- - -
-		 *  D0D0D0D1D1D1D1D1
+		 *  D1D1D1D1D1D0D0D0
 		 *
 		 *
 		 */
