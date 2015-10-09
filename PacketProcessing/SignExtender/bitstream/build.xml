@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<project basedir="." default="build" name="bitstreams">
+<project basedir="." default="SignExt" name="bitstreams">
 	<property environment="env"/>
 	<property name="ECLIPSE_HOME" value="${env.MAXCOMPILERDIR}/lib/MaxIDE"/>
 	<property name="debuglevel" value="source,lines,vars"/>
@@ -41,7 +41,7 @@
 		</maxjcompiler>
 	</target>
 	
-	<target name="SignExt">
+	<target depends="build" name="SignExt">
 		<java classname="com.maxeler.examples.signExtender.SignExtManager" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
