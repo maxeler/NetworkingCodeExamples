@@ -21,4 +21,11 @@ python-pip install -r requirements.txt
 
 Once fabricate is installed, the build scripts should work.
 
+## Submodule dependencies
 
+Some projects require the `maxpower` submodule to be present. To ensure that this is available, run the following commands:
+
+```
+$ git submodule init
+$ git submodule update
+```
