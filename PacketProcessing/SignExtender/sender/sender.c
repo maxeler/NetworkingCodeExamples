@@ -54,7 +54,7 @@ typedef struct __attribute__((packed)) {
 	uint8_t cSz : 2;
 	uint64_t a : 48;
 	uint64_t b : 8;
-	uint64_t c : 32;
+	uint64_t c : 24;
 } something2_t;
 
 static void send_frames(int sock) {
