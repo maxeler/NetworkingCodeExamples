@@ -32,7 +32,6 @@ public class IncomingData extends KernelLib {
    		 *	uint8_t bSz : 3;
    		 *	uint8_t cSz : 2;
    		 *	char data[];
-   		 *  char text[8];
 		 * };
 		 */
 
@@ -47,15 +46,19 @@ public class IncomingData extends KernelLib {
 		 *
 		 * Assuming little endian
 		 *
-		 * Construct super word, 28 bytes:
+		 * Construct super word, 20 bytes:
 		 * 7 data bytes from 1st cycle (current cycle)
 		 * 8 data bytes from 2nd cycle
-		 * 8 data bytes from 3rd cycle
-		 * 5 data bytes from 4th cycle
+		 * 5 data bytes from 3rd cycle
 		 *
 		 */
 
-		final DFEVar superWord = extractBytes(stream.offset(data, 3), 0, 5) # extractBytes(stream.offset(data, 2), 0, 8) # extractBytes(stream.offset(data, 1), 0, 8) # extractBytes(data, 1, 7);
+		final DFEVar cycle0 = data;
+		final DFEVar cycle1 = stream.offset(data, 1);
+		final DFEVar cycle2 = stream.offset(data, 2);
+
+		// '#' is the concatenation operator for DFEVars
+		final DFEVar superWord = extractBytes(cycle2, 0, 5) # extractBytes(cycle1, 0, 8) # extractBytes(cycle0, 1, 7);
 
 		final DFEVar bOffset = toActualSize(aSz);
 		final DFEVar cOffset = sum(bOffset, toActualSize(bSz));
