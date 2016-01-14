@@ -17,3 +17,9 @@ D D D G D D D D
 The output, will be the original packet, followed by a new packet of length 100. 
 The new packet will have a GapIndicator metadata field set.
  
+ 
+ Architecture:
+ 
+ ![Architecture]
+ (Architecture.png)
+ 
