@@ -41,8 +41,8 @@
 		</maxjcompiler>
 	</target>
 	
-	<target name="HeaderInserter">
-		<java classname="com.maxeler.examples.header.insert.HeaderManager" failonerror="true" fork="yes">
+	<target name="Gap">
+		<java classname="com.maxeler.examples.dynamicgap.DynamicGapManager" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>
