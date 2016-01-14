@@ -1,4 +1,4 @@
-# Add Header Example
+# Dynamic Inter-Frame-Gap Example
 
 This example will insert a 'gap' packet every time it sees a packet arrive that has it's 20th byte (0 base) set to 'G'
 
@@ -16,4 +16,10 @@ D D D G D D D D
 
 The output, will be the original packet, followed by a new packet of length 100. 
 The new packet will have a GapIndicator metadata field set.
+ 
+ 
+ Architecture:
+ 
+ ![Architecture]
+ (Architecture.png)
  
