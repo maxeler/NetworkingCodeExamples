@@ -1,4 +1,4 @@
-# Add Header Example
+# Dynamic Inter-Frame-Gap Example
 
 This example will insert a 'gap' packet every time it sees a packet arrive that has it's 20th byte (0 base) set to 'G'
 
