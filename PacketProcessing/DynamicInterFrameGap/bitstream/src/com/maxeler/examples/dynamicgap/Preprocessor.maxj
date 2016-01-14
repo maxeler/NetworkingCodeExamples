@@ -36,7 +36,7 @@ public class Preprocessor extends Kernel {
 		/*
 		 * Based on the input frame, find out what the inter-frame-gap should be.
 		 *
-		 * Lets assume the 20th byte of the packet is the MessageType.
+		 * Lets assume the 20th byte (0 base) of the packet is the MessageType.
 		 * If MessageType = 'G' then insert a Gap of 100 cycles. Otherwise, Gap = 0.
 		 */
 
