@@ -1,0 +1,23 @@
+package com.maxeler.examples.dynamicgap;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+
+public class DynamicGapEngineParameters extends EngineParameters {
+
+	public DynamicGapEngineParameters(String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		declareParam(s_parameterDFE, DFEModel.class, DFEModel.ISCA);
+		declareParam(s_parameterMaxFileName, DataType.STRING, "Gap");
+		declareParam(s_parameterTarget, Target.class, Target.DFE_SIM);
+	}
+
+//	@Override
+//	public String getBuildName() {
+//		return getMaxFileName() + "_" + getTarget() + "_ss" + getHasStreamStatus() + "_sf" + getStreamFrequency();
+//	}
+}

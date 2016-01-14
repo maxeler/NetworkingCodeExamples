@@ -1,0 +1,388 @@
+package com.maxeler.examples.dynamicgap;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLib;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar.Radix;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmInput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateEnum;
+import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
+import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+
+public class DynamicGapKernel extends Kernel {
+	public static final String INPUT = "frameIn";
+	public static final String OUTPUT = "frameOut";
+
+
+	/*
+	 * The structure of the header we want to insert
+	 */
+	public static HeaderType headerType = new HeaderType();
+	public static class HeaderType extends DFEStructType {
+		public static String HeaderFieldA = "hfa";
+		public static String HeaderFieldB = "hfb";
+		public static String HeaderFieldC = "hfc";
+		public static String HeaderFieldD = "hfd";
+		public HeaderType() {
+			super(
+					sft(HeaderFieldA, dfeUInt(8)),
+					sft(HeaderFieldB, dfeUInt(64)),
+					sft(HeaderFieldC, dfeUInt(48)),
+					sft(HeaderFieldD, dfeUInt(32))
+				);
+		}
+	}
+
+	/*
+	 * The structure of the CPU information we need
+	 */
+	public static CpuInfoType cpuInfoType = new CpuInfoType();
+	public static class CpuInfoType extends DFEStructType {
+		public static String CpuData1 = "cpuData1";
+		public static String CpuData2 = "cpuData2";
+		public CpuInfoType() {
+			super(
+					sft(CpuData1, dfeUInt(32)),
+					sft(CpuData2, dfeUInt(8))
+				);
+		}
+	}
+
+
+	private final FramedLinkType linkType;
+
+	private int getLinkDataWidthBytes() {
+		return linkType.getDFEStructType().getTypeForField(linkType.getData()).getTotalBytes();
+	}
+
+	private int getHeaderSizeBytes() {
+		return headerType.getTotalBytes();
+	}
+
+	private int getHeaderSizeCycles() {
+		return getHeaderSizeBytes() / getLinkDataWidthBytes();
+	}
+
+	private int getHeaderOverheadCycles() {
+		return MathUtils.ceilDivide(getHeaderSizeBytes(), getLinkDataWidthBytes());
+	}
+
+
+	DynamicGapKernel(KernelParameters parameters, FramedLinkType linkType) {
+		super(parameters);
+
+		flush.disabled();
+		this.linkType = linkType;
+
+		/*
+		 * First, compute how much space we need to create and use that as the inter-frame gap
+		 */
+		int headerOverhead = getHeaderOverheadCycles();
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
+				linkType.getDFEStructType(),
+				constant.var(true),
+				linkType.getDFEStructType().getPositionForField(linkType.getEOF()),
+				DelimiterMode.EOF_POSITION,
+				headerOverhead,  // Enforce enough inter-frame gap to insert the header
+				NonBlockingMode.NO_TRICKLING);
+
+		DFEVar dataValid = input.valid;
+		DFEVar data = (DFEVar)input.data[linkType.getData()];
+		DFEVar isDataStart = dataValid & (DFEVar)input.data[linkType.getSOF()];
+		DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
+
+
+		/*
+		 * Realign data to fit nicely after header:
+		 * Original data:
+		 *  7 6 5 4 3 2 1 0
+		 *  v v v v v v v v
+		 *  - - v v v v v v
+		 *
+		 *  With header:
+		 *  7 6 5 4 3 2 1 0
+		 *  H H H H H H H H
+		 *  H H H H H H H H
+		 *  v v v v v H H H
+		 *  v v v v v v v v
+		 *  - - - - - - - v
+		 *
+		 */
+
+
+
+		// We realign the data
+		int alignment = getHeaderSizeBytes() % getLinkDataWidthBytes();
+		DFEVar alignedData = realign(data, alignment);
+
+
+		// We insert the new header 'header size' cycles ahead of the data
+		DFEVar isHeaderStart = stream.offset(isDataStart, getHeaderSizeCycles());
+
+		/*
+		 * We create a memory that will be filled up by the CPU.
+		 * We will look in to this memory based on the incoming data.
+		 * We will use the information we find to fill up the header.
+		 */
+		Memory<DFEStruct> rom = mem.alloc(cpuInfoType, 512);
+		rom.mapToCPU("info");
+
+		// The first word of the data will tell us where to read from in the rom
+		DFEVar index = stream.offset(data, getHeaderSizeCycles()).slice(0, 9).cast(dfeUInt(9));
+		DFEStruct cpuInfo = rom.read(index);
+
+
+		DFEStruct theHeader = headerType.newInstance(this);
+		theHeader[HeaderType.HeaderFieldA] <== cpuInfo[CpuInfoType.CpuData2];
+		theHeader[HeaderType.HeaderFieldB] <== constant.var(dfeUInt(64), 0x123456789ABCDEFL);
+		theHeader[HeaderType.HeaderFieldC] <== constant.var(dfeUInt(48), 0xCCCCCCCCCCCCL);
+		theHeader[HeaderType.HeaderFieldD] <== cpuInfo[CpuInfoType.CpuData1];
+
+		// Make sure the header doesn't change on the next cycle
+		// This will happen since the index will change on the next cycle.
+		theHeader = Reductions.streamHold(theHeader, isHeaderStart);
+
+		debug.simPrintf(isHeaderStart, "Read from index: %d, CpuData1 = 0x%x, CpuData2 = 0x%x\n", index,
+				cpuInfo[CpuInfoType.CpuData1], cpuInfo[CpuInfoType.CpuData2]);
+
+		/*
+		 * We now need to take the header, and mux it over the dataBus
+		 */
+		SMIO controlSm = addStateMachine("controlSm", new ControlSm(this));
+		controlSm.getInput("headerStart") <== isHeaderStart;
+		DFEVar headerPartSelect = controlSm.getOutput("headerSelect");
+		DFEVar isEndOfHeader = controlSm.getOutput("headerEnd");
+		DFEVar headerValid = controlSm.getOutput("headerValid");
+
+
+
+		// The header word is wider than the link width. So we need to mux it over multiple cycles.
+		DFEVar headerData = muxHeader(headerPartSelect, theHeader.pack());
+
+		// Combine the data
+		// If the alignment != 0, then when the header ends the data also starts - so we need to combine the partial words.
+		// If the alignment == 0, then the header takes up an integer number of cycles - so no need to combine partial words.
+
+		DFEVar outputNow = dataValid | headerValid;
+		DFEVar outputData = headerValid ?
+				(isEndOfHeader & isDataStart ?
+						alignedData.slice(alignment * 8, (8-alignment)*8) # headerData.slice(0, alignment * 8) : headerData) :
+							alignedData;
+
+
+		isHeaderStart.simWatch("isHeaderStart");
+		isEndOfHeader.simWatch("isEndOfHeader");
+		headerValid.simWatch("headerValid");
+		headerPartSelect.simWatch("headerPartSelect");
+
+		dataValid.simWatch("dataValid");
+		outputNow.simWatch("outputNow");
+
+		data.cast(dfeUInt(64)).simWatch("inputData", Radix.HEXADECIMAL);
+		alignedData.cast(dfeUInt(64)).simWatch("alignedData", Radix.HEXADECIMAL);
+		headerData.cast(dfeUInt(64)).simWatch("headerData", Radix.HEXADECIMAL);
+		outputData.cast(dfeUInt(64)).simWatch("outputData", Radix.HEXADECIMAL);
+		debug.simPrintf(outputNow, "outputData = 0x%x, headerData=%x, alignedData=%x, inputData=%x, sof=%d, eof=%d\n", outputData, headerData, alignedData, data, isHeaderStart, eof);
+
+		// Since we're changing the data alignment, we need to correct the MOD field
+		DFEVar inputMod = (DFEVar)input.data[linkType.getMod()];
+
+		DFEVar outputMod = (alignment + inputMod).cast(dfeUInt(3));
+		DFEVar outputSof = isHeaderStart;
+		DFEVar outputEof = eof;
+
+
+		DFEStruct outputStruct = linkType.getDFEStructType().newInstance(this);
+		outputStruct[linkType.getData()] <== outputData;
+		outputStruct[linkType.getSOF()] <== outputSof.simWatch("outputSof");
+		outputStruct[linkType.getEOF()] <== outputEof.simWatch("outputEof");
+		outputStruct[linkType.getMod()] <== outputMod.simWatch("outputMod");
+
+		io.output(OUTPUT, linkType.getDFEStructType(), outputNow) <== outputStruct;
+	}
+
+	private enum ControlStates {
+		WaitForStart,
+		CountUp
+	}
+
+	private class ControlSm extends KernelStateMachine {
+
+		private final DFEsmInput headerStart;
+		private final DFEsmOutput headerSelect;
+		private final DFEsmOutput headerEnd;
+		private final DFEsmOutput headerValid;
+		private final DFEsmStateValue count;
+		private final DFEsmStateValue finish;
+		private final DFEsmStateValue valid;
+		private final DFEsmStateValue select;
+		private final DFEsmStateEnum<ControlStates> currentState;
+
+		protected ControlSm(KernelLib owner) {
+			super(owner);
+
+			int selectWidth = MathUtils.bitsToRepresent(getHeaderOverheadCycles());
+			headerStart = io.input("headerStart", dfeBool());
+			headerSelect = io.output("headerSelect", dfeUInt(selectWidth), 1);
+			headerEnd = io.output("headerEnd", dfeBool(), 1);
+			headerValid = io.output("headerValid", dfeBool(), 1);
+			count = state.value(dfeUInt(selectWidth), 0);
+			select = state.value(dfeUInt(selectWidth), 0);
+			valid = state.value(dfeBool(), false);
+			finish = state.value(dfeBool(), false);
+
+			currentState = state.enumerated(ControlStates.class, ControlStates.WaitForStart);
+		}
+
+		@Override
+		protected void nextState() {
+			valid.next <== false;
+			finish.next <== false;
+
+			SWITCH (currentState) {
+				CASE (ControlStates.WaitForStart) {
+					count.next <== 1;
+					select.next <== 0;
+
+					IF (headerStart) {
+						valid.next <== true;
+						currentState.next <== ControlStates.CountUp;
+					}
+				}
+
+				CASE (ControlStates.CountUp) {
+					select.next <== select + 1;
+					count.next <== count + 1;
+					valid.next <== true;
+
+					IF (count === (getHeaderOverheadCycles() - 1)) {
+						finish.next <== true;
+						currentState.next <== ControlStates.WaitForStart;
+					}
+				}
+			}
+		}
+
+		@Override
+		protected void outputFunction() {
+			headerSelect <== select;
+			headerEnd <== finish;
+			headerValid <== valid;
+		}
+	}
+
+
+	private DFEVar muxHeader(DFEVar select, DFEVar data) {
+
+		int size = getHeaderOverheadCycles();
+		int listSize = 1 << select.getType().getTotalBits();
+
+		DFEVar padded = data;
+
+		int rem = getHeaderSizeBytes() % getLinkDataWidthBytes();
+		int paddingSize = rem == 0 ? 0 : getLinkDataWidthBytes() - rem;
+		if (paddingSize != 0) {
+			padded = constant.var(dfeRawBits(paddingSize * 8), 0) # data;
+		}
+
+		List<DFEVar> words = new ArrayList<DFEVar>();
+		for (int i=0; i < size; i++)
+			words.add(getHeaderWord(padded, i));
+
+		for (int i=size; i < listSize; i++)
+			words.add(constant.var(dfeRawBits(getLinkDataWidthBytes() * 8), 0));
+
+
+		return control.mux(select, words);
+	}
+
+	private DFEVar getHeaderWord(DFEVar data, int wordIndex) {
+		return data.slice(wordIndex * getLinkDataWidthBytes() * 8, getLinkDataWidthBytes() * 8);
+	}
+
+	public DFEVar realign(final DFEVar data, final int alignment) {
+		final int remainder = 8 - alignment;
+
+		/*
+		 * We're injecting a fixed amount of bytes,
+		 * So lets go through an example:
+		 *
+		 * Alignment = 3
+		 *
+		 * This means, the header finishes at byte index 2 within the word
+		 *  7 6 5 4 3 2 1 0
+		 *  H H H H H H H H
+		 *  H H H H H H H H
+		 *  - - - - - H H H
+		 *
+		 * Originally the data comes in like this:
+		 *
+		 *  7 6 5 4 3 2 1 0
+		 *  D0D0D0D0D0D0D0D0
+		 *  - - - D1D1D1D1D1
+		 *
+		 *  D0 - means a data byte that came on cycle 0
+		 *  D1 - means a data byte that came on cycle 1
+		 *
+		 *
+		 *  We need to take the data and change it to start at index 3
+		 *  7 6 5 4 3 2 1 0
+		 *  D0D0D0D0D0- - -
+		 *  D1D1D1D1D1D0D0D0
+		 *
+		 *
+		 */
+
+		// bottom bits from the current cycle become the top bits
+		final DFEVar newMsb = data.slice(0, remainder * 8);
+
+		// top bits from the previous cycle are the new bottom bits
+		final DFEVar newLsb = stream.offset(data.slice(remainder * 8, alignment * 8), -1);
+
+
+		/*
+		 * And then we combine them.
+		 *
+		 * So at cycle 0:
+		 *  7 6 5 4 3 2 1 0
+		 *  D0D0D0D0D0x x x
+		 *
+		 *  x - represents stream.offset(D0, -1), which is junk
+		 *  This is fine, because we are going to replace x with H later on.
+		 *
+		 *  At cycle 1:
+		 *  7 6 5 4 3 2 1 0
+		 *  D1D1D1D1D1D0D0D0
+		 *
+		 *  Which is good.
+		 *
+		 */
+
+		final DFEVar combined = newMsb # newLsb;
+
+
+		return combined.cast(data.getType());
+	}
+
+	public static void main(String args[]) {
+		StructUtils.printDFEStructType(cpuInfoType);
+		StructUtils.printDFEStructType(headerType);
+	}
+}
