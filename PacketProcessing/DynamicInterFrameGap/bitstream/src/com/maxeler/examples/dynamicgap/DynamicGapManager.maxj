@@ -3,7 +3,6 @@ package com.maxeler.examples.dynamicgap;
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.managers.BuildConfig;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
-import com.maxeler.maxcompiler.v2.managers.custom.blocks.StateMachineBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
 import com.maxeler.networking.v1.managers.NetworkManager;
 
@@ -16,19 +15,12 @@ public class DynamicGapManager extends NetworkManager {
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
 
-		KernelBlock pre = addKernel(new Preprocessor(makeKernelParameters("pre")));
-		StateMachineBlock gap = addStateMachine("gap", new GapGenerator(this));
-		KernelBlock processor = addKernel(new Processor(makeKernelParameters("processor")));
+		KernelBlock processor = addKernel(new Processor(this));
 
 
-		pre.getInput(Preprocessor.INPUT) <== addFramedStreamFromCPU("src", Types.linkWithGapIndicator);
+		processor.getInput(Processor.INPUT) <== addFramedStreamFromCPU("src", Types.dynamicGapLinkType);
 
-		gap.getInput(GapGenerator.INPUT_FRAME) <== pre.getOutput(Preprocessor.OUTPUT_FRAME);
-		gap.getInput(GapGenerator.INPUT_GAP_SIZE) <== pre.getOutput(Preprocessor.OUTPUT_GAP_SIZE);
-
-		processor.getInput(Processor.INPUT) <== gap.getOutput(GapGenerator.OUTPUT_FRAME);
-		
-		addFramedStreamToCPU("dst", Types.linkWithGapIndicator) <== processor.getOutput(Processor.OUTPUT);
+		addFramedStreamToCPU("dst", Types.dynamicGapLinkType) <== processor.getOutput(Processor.OUTPUT);
 	}
 
 	public static void main(String[] args) {

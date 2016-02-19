@@ -1,4 +1,5 @@
-#define _GNU_SOURCE
+#define _DEFAULT_SOURCE
+#define __USE_XOPEN2K
 
 #include <arpa/inet.h>
 #include <linux/if.h>
@@ -8,6 +9,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
+#include <features.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,6 +18,8 @@
 #include <unistd.h>
 
 #include "MaxSLiCInterface.h"
+#include "MaxSLiCNetInterface.h"
+
 
 typedef struct __attribute__((packed)) {
 	uint32_t  cpuData1;
@@ -64,23 +68,25 @@ int main(int argc, char *argv[]) {
 		info.cpuData1 = 0x1000 + i;
 		info.cpuData2 = 0x22;
 		uint64_t d = *(uint64_t *)&info;
-		max_set_mem_uint64t(action, "headerKernel", "info", i, d);
+		max_set_mem_uint64t(action, "HeaderKernel", "info", i, d);
 	}
 	max_run(engine, action);
 
 
 	size_t bufferSize = 4096 * 4096;
-	void *inBuffer = NULL;
-	void *outBuffer = NULL;
-	posix_memalign(&inBuffer, 4096, bufferSize);
-	posix_memalign(&outBuffer, 4096, bufferSize);
+	void *inBuffer = malloc(bufferSize);
+	void *outBuffer = malloc(bufferSize);
+//	posix_memalign(&inBuffer, 4096, bufferSize);
+//	posix_memalign(&outBuffer, 4096, bufferSize);
 	max_framed_stream_t *inFrame = max_framed_stream_setup(engine, "inFrame", inBuffer, bufferSize, 2048-16);
 	max_framed_stream_t *outFrame = max_framed_stream_setup(engine, "outFrame", outBuffer, bufferSize, -1);
 
 	// Now, stream in some frames and see what happens.
+	size_t frameSize = sizeof(FrameFormat_t);
 
-	for (size_t i=0 ; i < 1; i++) {
+	for (size_t i=0 ; i < 20; i++) {
 		void *f;
+
 		while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
 
 		FrameFormat_t *ff = f;
@@ -91,7 +97,6 @@ int main(int argc, char *argv[]) {
 			ff->data[s] = s & 0xFF;
 		}
 
-		size_t frameSize = sizeof(FrameFormat_t);
 		printf("Sending: index %d, data: ", ff->index);
 		for (size_t s=0; s < dataSize; s++) {
 			printf("%d ",ff->data[s]);
@@ -99,9 +104,10 @@ int main(int argc, char *argv[]) {
 		printf("\n");
 
 		max_framed_stream_write(inFrame, 1, &frameSize);
+	}
 
-
-
+	for (size_t i=0; i < 20; i++) {
+		size_t dataSize = 10 + i;
 		void *oFrame;
 		size_t oFrameSize;
 		while (max_framed_stream_read(outFrame, 1, &oFrame, &oFrameSize) != 1) usleep(100);
@@ -118,8 +124,6 @@ int main(int argc, char *argv[]) {
 			printf("%d ", off->data[s]);
 		}
 		printf("\n");
-
-
 
 		max_framed_stream_discard(outFrame, 1);
 	}

@@ -13,12 +13,11 @@ public class HeaderManager extends NetworkManager {
 	public HeaderManager(EngineParameters configuration) {
 		super(configuration);
 
-
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
 
 		SimpleFramedLinkType linkType = new SimpleFramedLinkType();
 
-		KernelBlock kernel = addKernel(new HeaderKernel(makeKernelParameters("headerKernel"), linkType));
+		KernelBlock kernel = addKernel(new HeaderKernel(this, linkType));
 		kernel.getInput(HeaderKernel.INPUT) <== addFramedStreamFromCPU("inFrame", linkType);
 		addFramedStreamToCPU("outFrame", linkType) <== kernel.getOutput(HeaderKernel.OUTPUT);
 	}
