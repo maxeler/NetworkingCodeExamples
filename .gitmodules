@@ -1,3 +1,6 @@
 [submodule "lib/maxpower"]
 	path = lib/maxpower
 	url = git@github.com:maxeler/maxpower.git
+[submodule "utils"]
+	path = utils
+	url = git@github.com:maxeler/project-utils.git

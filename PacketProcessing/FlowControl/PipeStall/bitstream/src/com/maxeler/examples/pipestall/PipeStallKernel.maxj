@@ -1,0 +1,41 @@
+package com.maxeler.examples.pipestall;
+
+import com.maxeler.examples.pipestall.PipeStallTypes.SomeLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+public class PipeStallKernel extends KernelLite {
+	public static String INPUT = "inputFrame";
+	public static String OUTPUT = "outputFrame";
+
+	public PipeStallKernel(NetworkManager owner) {
+		super(owner, "PipeStallKernel");
+
+		SomeLinkType linkType = PipeStallTypes.someLinkType;
+
+		PushInput<DFEStruct> input = io.pushInput(INPUT, linkType, 8);
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
+		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
+		DFEVar data = inputStruct.get(linkType.getData());
+
+
+		debug.simPrintf(inputValid, "Got data: 0x%x, sof=%d, eof=%d\n", data, sof, eof);
+
+
+
+		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, 8);
+
+		pushOut.data <== inputStruct;
+		pushOut.valid <== inputValid;
+
+		input.stall <== optimization.pipeline(pushOut.stall);
+
+	}
+}

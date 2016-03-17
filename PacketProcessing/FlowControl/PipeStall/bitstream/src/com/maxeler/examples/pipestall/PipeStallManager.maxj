@@ -1,0 +1,38 @@
+package com.maxeler.examples.pipestall;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class PipeStallManager extends NetworkManager {
+
+	public PipeStallManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		KernelBlock k = addKernel(new PipeStallKernel(this));
+		k.getInput(PipeStallKernel.INPUT) <== addFramedStreamFromCPU("src", PipeStallTypes.someLinkType);
+		addFramedStreamToCPU("dst", PipeStallTypes.someLinkType) <== k.getOutput(PipeStallKernel.OUTPUT);
+	}
+
+	public static void main(String[] args) {
+		PipeStallParameters params = new PipeStallParameters(args);
+		PipeStallManager manager = new PipeStallManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}

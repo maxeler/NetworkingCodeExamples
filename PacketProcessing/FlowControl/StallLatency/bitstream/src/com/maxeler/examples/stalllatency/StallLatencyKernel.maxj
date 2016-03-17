@@ -1,0 +1,59 @@
+package com.maxeler.examples.stalllatency;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+public class StallLatencyKernel extends KernelLite {
+	public static String INPUT = "inData";
+	public static String OUTPUT = "outData";
+
+	/*
+	 * This kernel illustrates how to stall the input based on the output
+	 * It avoids stalling the compute pipeline, by carefully selecting an appropriate output stall latency
+	 */
+	public StallLatencyKernel(NetworkManager owner) {
+		super(owner, "StallLatencyKernel");
+
+		int inputStallLatency = 8;
+
+		PushInput<DFEVar> input = io.pushInput(INPUT, dfeUInt(128), inputStallLatency);
+
+		DFEVar data = input.data;
+		DFEVar valid = input.valid;
+
+		data = someCompute(data);
+
+		DFEVar outputStall = dfeBool().newInstance(this);
+
+		OffsetExpr outputStallLatency;
+		/* Compute Path */
+		outputStallLatency = stream.measureDistance("computePath", input.data, data);
+		/* Output stall to Input Stall path */
+		outputStallLatency += stream.measureDistance("inputStallPath", outputStall, input.stall);
+		/* Input stall latency */
+		outputStallLatency += inputStallLatency;
+
+		PushOutput<DFEVar> pushOut = io.pushOutput(OUTPUT, dfeUInt(128), outputStallLatency);
+
+		pushOut.data <== data;
+		pushOut.valid <== valid;
+
+		input.stall <== optimization.pipeline(outputStall);
+		outputStall <== pushOut.stall;
+
+
+	}
+
+	public DFEVar someCompute(DFEVar data) {
+		DFEVar a = data.slice(0, 64).cast(dfeUInt(64));
+		DFEVar b = data.slice(64, 64).cast(dfeUInt(64));
+
+		DFEVar c = (a+b)*(b+1) / (a - b);
+
+		return (c * c).cast(dfeUInt(128));
+	}
+}
