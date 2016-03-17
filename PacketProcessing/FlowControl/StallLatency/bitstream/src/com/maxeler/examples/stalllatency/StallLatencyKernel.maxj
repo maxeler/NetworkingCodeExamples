@@ -52,7 +52,7 @@ public class StallLatencyKernel extends KernelLite {
 		DFEVar a = data.slice(0, 64).cast(dfeUInt(64));
 		DFEVar b = data.slice(64, 64).cast(dfeUInt(64));
 
-		DFEVar c = (a+b)*(b+1) / (a - b);
+		DFEVar c = (a+b)*(b+1);
 
 		return (c * c).cast(dfeUInt(128));
 	}
