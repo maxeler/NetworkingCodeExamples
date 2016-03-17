@@ -25,13 +25,13 @@ public class StallLatencyKernel extends KernelLite {
 		DFEVar data = input.data;
 		DFEVar valid = input.valid;
 
-		data = someCompute(data);
+		DFEVar outputdata = someCompute(data);
 
 		DFEVar outputStall = dfeBool().newInstance(this);
 
 		OffsetExpr outputStallLatency;
 		/* Compute Path */
-		outputStallLatency = stream.measureDistance("computePath", input.data, data);
+		outputStallLatency = stream.measureDistance("computePath", input.data, outputdata);
 		/* Output stall to Input Stall path */
 		outputStallLatency += stream.measureDistance("inputStallPath", outputStall, input.stall);
 		/* Input stall latency */
@@ -39,7 +39,7 @@ public class StallLatencyKernel extends KernelLite {
 
 		PushOutput<DFEVar> pushOut = io.pushOutput(OUTPUT, dfeUInt(128), outputStallLatency);
 
-		pushOut.data <== data;
+		pushOut.data <== outputdata;
 		pushOut.valid <== valid;
 
 		input.stall <== optimization.pipeline(outputStall);
