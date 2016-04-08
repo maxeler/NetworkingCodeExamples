@@ -29,9 +29,8 @@ public class StallLatencyKernel extends KernelLite {
 
 		DFEVar outputStall = dfeBool().newInstance(this);
 
-		OffsetExpr outputStallLatency;
-		/* Compute Path */
-		outputStallLatency = stream.measureDistance("computePath", input.data, outputdata);
+		/* Compute path */
+		OffsetExpr outputStallLatency = stream.measureDistance("computePath", input.data, outputdata);
 		/* Output stall to Input Stall path */
 		outputStallLatency += stream.measureDistance("inputStallPath", outputStall, input.stall);
 		/* Input stall latency */

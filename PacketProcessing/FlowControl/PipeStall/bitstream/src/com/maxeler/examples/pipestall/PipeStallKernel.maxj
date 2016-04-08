@@ -1,11 +1,14 @@
 package com.maxeler.examples.pipestall;
 
-import com.maxeler.examples.pipestall.PipeStallTypes.SomeLinkType;
+import maxpower.kernel.lite.LiteUtils;
+
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Count;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
-import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.networking.v1.managers.NetworkManager;
 
 public class PipeStallKernel extends KernelLite {
@@ -15,27 +18,74 @@ public class PipeStallKernel extends KernelLite {
 	public PipeStallKernel(NetworkManager owner) {
 		super(owner, "PipeStallKernel");
 
-		SomeLinkType linkType = PipeStallTypes.someLinkType;
+		int inputStallLatency = 2;
+		PushInput<DFEVar> input = io.pushInput(INPUT, dfeUInt(128), inputStallLatency);
 
-		PushInput<DFEStruct> input = io.pushInput(INPUT, linkType, 8);
+		DFEVar valid = input.valid;
+		DFEVar data = input.data;
 
-		DFEStruct inputStruct = input.data;
-		DFEVar inputValid = input.valid;
-		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
-		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
-		DFEVar data = inputStruct.get(linkType.getData());
+		DFEVar validControl = LiteUtils.scheduleGap(valid);
 
-
-		debug.simPrintf(inputValid, "Got data: 0x%x, sof=%d, eof=%d\n", data, sof, eof);
-
+		/*
+		 * Stall logic
+		 */
+		DFEVar stallNow = shouldStall(validControl, 1000);
 
 
-		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, 8);
+		pushStall(stallNow);
 
-		pushOut.data <== inputStruct;
-		pushOut.valid <== inputValid;
+		/*
+		 * The compute which should stall
+		 */
+		DFEVar computeData = someCompute(data);
+		/*
+		 * Schedule with - since we want to stall the 'valid' signal when the compute path is stalled.
+		 * This forces the scheduling fifo to be created inside the stall scope.
+		 */
+		DFEVar computeValid = valid.scheduleWith(computeData);
 
-		input.stall <== optimization.pipeline(pushOut.stall);
+		popStall();
 
+		DFEVar outputValid = computeValid & ~stallNow;
+		DFEVar outputData = computeData;
+
+		DFEVar outputStall = dfeBool().newInstance(this);
+		OffsetExpr outputStallLatency = stream.measureDistance("computeValidToOutputValid", computeValid, outputValid);
+		outputStallLatency += stream.measureDistance("outputStallToInputStall", outputStall, input.stall);
+		outputStallLatency += stream.measureDistance("inputValidToPipeStall", validControl, stallNow);
+		outputStallLatency += inputStallLatency;
+
+		PushOutput<DFEVar> pushOut = io.pushOutput(OUTPUT, dfeUInt(128), outputStallLatency);
+
+		pushOut.data <== outputData;
+		pushOut.valid <== outputValid;
+
+
+		outputStall <== pushOut.stall;
+		input.stall <== outputStall;
+	}
+
+	public DFEVar shouldStall(DFEVar inputValid, long numItems) {
+		DFEVar finished = control.count.makeCounter(
+				control.count.makeParams(MathUtils.bitsToRepresent(numItems)).withWrapMode(Count.WrapMode.STOP_AT_MAX)
+					.withEnable(inputValid)
+					.withMax(numItems)
+				).getCount() === numItems;
+
+
+		/*
+		 * Stall when the input stops and the we didn't see all the data yet.
+		 */
+
+		return ~(finished | inputValid);
+	}
+
+	public DFEVar someCompute(DFEVar data) {
+		DFEVar a = data.slice(0, 64).cast(dfeUInt(64));
+		DFEVar b = data.slice(64, 64).cast(dfeUInt(64));
+
+		DFEVar c = (a+b)*(b+1);
+
+		return (c * c).cast(dfeUInt(128));
 	}
 }

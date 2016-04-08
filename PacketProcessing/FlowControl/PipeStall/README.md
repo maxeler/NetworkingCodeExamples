@@ -1,25 +1,5 @@
-# My Project Title
+# Pipe-Stall Flow Control Example 
 
-This is a generic project template. My Project does: X, Y, Z.
-
-
-## How to build
-
-
-### Bitstream
-cd bitstream
-ant
-
-
-### Runtime
-cd runtime
-cp <maxfile> .
-./build.py
-
-
-## How to run
-
-cd runtime
-./myApp
+This example shows how to stall a compute path, when the output has stalled or the input has stopped.
 
 

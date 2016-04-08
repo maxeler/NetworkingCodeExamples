@@ -16,9 +16,11 @@ public class PipeStallManager extends NetworkManager {
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
 
+		pushDefaultClock(getHostStreamClock());
+
 		KernelBlock k = addKernel(new PipeStallKernel(this));
-		k.getInput(PipeStallKernel.INPUT) <== addFramedStreamFromCPU("src", PipeStallTypes.someLinkType);
-		addFramedStreamToCPU("dst", PipeStallTypes.someLinkType) <== k.getOutput(PipeStallKernel.OUTPUT);
+		k.getInput(PipeStallKernel.INPUT) <== addStreamFromCPU("src");
+		addStreamToCPU("dst") <== k.getOutput(PipeStallKernel.OUTPUT);
 	}
 
 	public static void main(String[] args) {
