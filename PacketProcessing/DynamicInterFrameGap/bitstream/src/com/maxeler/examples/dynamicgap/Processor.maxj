@@ -1,16 +1,15 @@
 package com.maxeler.examples.dynamicgap;
 
-import maxpower.kernel.lite.FrameIO;
-import maxpower.kernel.lite.FrameIO.FrameInput;
-import maxpower.kernel.lite.FrameIO.InterFrameGapSpec;
+import maxpower.kernel.lite.LiteIo;
 import maxpower.kernel.lite.LiteUtils;
+import maxpower.kernel.lite.utils.FrameIo.FrameInput;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
 
 import com.maxeler.examples.dynamicgap.Types.DynamicGapLinkType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Optimization.PipelinedOps;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
-import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.networking.v1.managers.NetworkManager;
@@ -26,8 +25,7 @@ public class Processor extends KernelLite {
 
 		DFEVar requiredGap = dfeUInt(8).newInstance(this);
 
-		FrameIO fio = new FrameIO(this);
-		FrameInput<DFEStruct> input = fio.frameInput(INPUT, linkType, new InterFrameGapSpec(requiredGap));
+		FrameInput<DFEStruct> input = LiteIo.interFrameGapInput(this, INPUT, linkType, new InterFrameGapSpec(requiredGap));
 
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
@@ -35,8 +33,7 @@ public class Processor extends KernelLite {
 		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
 		DFEVar data = inputStruct.get(linkType.getData());
 
-		LiteUtils lutils = new LiteUtils(this);
-		DFEVar pipeStall = lutils.makeContiguousStall(INPUT, inputValid, eof);
+		DFEVar pipeStall = LiteUtils.makeContiguousStall(INPUT, inputValid, eof);
 		pushStall(pipeStall);
 
 		/*
