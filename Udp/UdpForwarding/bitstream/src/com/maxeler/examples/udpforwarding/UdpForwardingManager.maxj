@@ -13,32 +13,35 @@ import com.maxeler.networking.v1.managers.netlib.UDPChecksumMode;
 import com.maxeler.networking.v1.managers.netlib.UDPConnectionMode;
 import com.maxeler.networking.v1.managers.netlib.UDPStream;
 
- 
+
 public class UdpForwardingManager extends NetworkManager {
 
 	public UdpForwardingManager(EngineParameters configuration) {
 		super(configuration);
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
-		
+
 		/*
 		 * Multicast feed input
 		 */
-		UDPStream udpMulticastFeed = addUDPStream("UdpMulticastFeed", Max4NetworkConnection.QSFP_TOP_10G_PORT1, 
+		UDPStream udpMulticastFeed = addUDPStream("UdpMulticastFeed", Max4NetworkConnection.QSFP_TOP_10G_PORT1,
 				UDPConnectionMode.OneToMany, UDPChecksumMode.Disabled);
-		
+
 		/*
-		 * Output UDP streams
+		 * Consumer UDP streams
 		 */
 		UDPStream consumers = addUDPStream("Consumers", Max4NetworkConnection.QSFP_BOT_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.Disabled);
-		
+
 		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
-		
-		
+
+
+		/*
+		 * Main Kernel
+		 */
 		KernelBlock k = addKernel(new UdpForwardingKernel(makeKernelParameters("fwd")));
-		
-		
+
+
 		k.getInput(UdpForwardingKernel.INPUT) <== udpMulticastFeed.getReceiveStream();
 		consumers.getTransmitStream() <== k.getOutput(UdpForwardingKernel.OUTPUT_CONSUMERS);
 		addStreamToCPU("events") <== k.getOutput(UdpForwardingKernel.OUTPUT_EVENTS_TO_CPU);
