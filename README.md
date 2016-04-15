@@ -10,22 +10,23 @@ MaxPower is required by some of these examples and is included as a git submodul
 Building
 ---------
 
-### Build System Requirements
-
-Our runtime build system is based around fabricate. 
-You will need to install it. This can be done using python-pip:
-
-```
-python-pip install -r requirements.txt
-```
-
-Once fabricate is installed, the build scripts should work.
-
 ## Submodule dependencies
 
-Some projects require the `maxpower` submodule to be present. To ensure that this is available, run the following commands:
+Some projects require the `maxpower` and `project utils` submodules to be present. To ensure that this is available, run the following commands:
 
 ```
 $ git submodule init
 $ git submodule update
 ```
+
+
+## Environment
+
+You will need to source the submodule environment files:
+
+```bash
+source lib/maxpower/config.sh
+source utils/config.sh
+```
+
+

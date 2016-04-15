@@ -1,0 +1,159 @@
+package com.maxeler.examples.udpforwarding;
+
+import com.maxeler.examples.udpforwarding.UdpForwardingTypes.EventsStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.statemachines.Flushing;
+
+public class UdpForwardingKernel extends Kernel {
+	public static String INPUT = "inputFeed";
+	public static String OUTPUT_CONSUMERS = "toConsumers";
+	public static String OUTPUT_EVENTS_TO_CPU = "events";
+
+	public UdpForwardingKernel(KernelParameters params) {
+		super(params);
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
+				UdpForwardingTypes.inputFeedLinkType, constant.var(true),
+				UdpForwardingTypes.inputFeedLinkType.getPositionForField(UdpForwardingTypes.InputFeedLinkType.EOF),
+				DelimiterMode.EOF_POSITION, Flushing.interFrameGapNone, NonBlockingMode.NO_TRICKLING);
+
+		InputMessage inputMessage = processInputFeed(input);
+		ConsumerDecision decision = makeDecision(inputMessage);
+
+		io.output(OUTPUT_CONSUMERS, UdpForwardingTypes.consumerLinkType,
+				inputMessage.valid & decision.shouldForward) <== genConsumerOutput(inputMessage, decision);
+
+		io.output(OUTPUT_EVENTS_TO_CPU, UdpForwardingTypes.eventType,
+				inputMessage.isMessageStart) <== genCpuEvent(inputMessage, decision);
+	}
+
+	private DFEStruct genConsumerOutput(InputMessage inputMessage,	ConsumerDecision decision) {
+		DFEStruct consumerLink = UdpForwardingTypes.consumerLinkType.newInstance(this);
+
+		consumerLink[UdpForwardingTypes.ConsumerLinkType.DATA] <== inputMessage.data;
+		consumerLink[UdpForwardingTypes.ConsumerLinkType.SOF] <== inputMessage.sof;
+		consumerLink[UdpForwardingTypes.ConsumerLinkType.EOF] <== inputMessage.eof;
+		consumerLink[UdpForwardingTypes.ConsumerLinkType.MOD] <== inputMessage.mod;
+		consumerLink[UdpForwardingTypes.ConsumerLinkType.SOCKET] <== decision.targetConsumer;
+
+		return consumerLink;
+	}
+
+	private DFEStruct genCpuEvent(InputMessage inputMessage, ConsumerDecision decision) {
+		DFEStruct eventToCpu = UdpForwardingTypes.eventType.newInstance(this);
+		eventToCpu[EventsStructType.ForwardDecision] <== decision.shouldForward ?
+					constant.var((DFEType)eventToCpu[EventsStructType.ForwardDecision].getType(), 1) :
+					constant.var((DFEType)eventToCpu[EventsStructType.ForwardDecision].getType(), 0);
+		eventToCpu[EventsStructType.ConsumerId] <== decision.targetConsumer;
+		eventToCpu[EventsStructType.EventCount] <== inputMessage.messageCount;
+		eventToCpu[EventsStructType.MessageType] <== inputMessage.messageType;
+		eventToCpu[EventsStructType.Padding] <== constant.var((DFEType)eventToCpu[EventsStructType.Padding].getType(), 0);
+
+		return eventToCpu;
+	}
+
+	private class ConsumerDecision {
+		public DFEVar shouldForward;
+		public DFEVar targetConsumer;
+	}
+
+	private ConsumerDecision makeDecision(InputMessage inputMessage) {
+		ConsumerDecision theDecision = new ConsumerDecision();
+
+		/*
+		 * Decision will be made by lookin up the messageType in a ROM.
+		 */
+
+		Memory<DFEStruct> decisionRom = mem.alloc(UdpForwardingTypes.decisionRomStructType, 256);
+		decisionRom.mapToCPU("decisionRom");
+		DFEStruct decision = Reductions.streamHold(decisionRom.read(inputMessage.messageType), inputMessage.isMessageStart);
+
+		theDecision.shouldForward = (DFEVar)decision.get(UdpForwardingTypes.DecisionRomStructType.ShouldForward) !== 0;
+		theDecision.targetConsumer = decision.get(UdpForwardingTypes.DecisionRomStructType.ConsumerId);
+
+		return theDecision;
+	}
+
+
+	private class InputMessage {
+		public DFEVar messageCount;
+		public DFEVar messageType;
+
+		public DFEVar isMessageStart;
+
+		public DFEVar valid;
+		public DFEVar data;
+		public DFEVar sof;
+		public DFEVar eof;
+		public DFEVar mod;
+	}
+
+	private InputMessage processInputFeed(NonBlockingInput<DFEStruct> input) {
+
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar data = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.DATA);
+		DFEVar sof = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.SOF);
+		DFEVar eof = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.EOF);
+		DFEVar mod = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.MOD);
+		//DFEVar socket = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.SOCKET);
+
+		/*
+		 * Start of message marker
+		 */
+		DFEVar isMessageStart = inputValid & sof;
+
+		/*
+		 * Count the number of input packets
+		 */
+		DFEVar messageCount = control.count.makeCounter(
+				control.count.makeParams(64)
+					.withInitValue(0)
+					.withEnable(isMessageStart)
+				).getCount();
+
+
+		/*
+		 * Extract the message type from the packet.
+		 * In this example, the message type is the value of byte at position 'messageTypeBytePosition' of the payload.
+		 */
+		int messageTypeBytePosition = 7;
+
+		DFEVar messageType = Reductions.streamHold(getByte(data, messageTypeBytePosition), isMessageStart);
+
+		InputMessage inputMessage = new InputMessage();
+		inputMessage.valid = inputValid;
+		inputMessage.data = data;
+		inputMessage.sof = sof;
+		inputMessage.eof = eof;
+		inputMessage.mod = mod;
+		inputMessage.messageCount = messageCount;
+		inputMessage.messageType = messageType;
+		inputMessage.isMessageStart = isMessageStart;
+
+
+		return inputMessage;
+	}
+
+	private DFEVar getByte(DFEVar data, int offset) {
+		int bytesPerWord = data.getType().getTotalBytes();
+
+		int wordOffset = offset / bytesPerWord;
+		int byteOffset = offset % bytesPerWord;
+
+		// 8 bits in a byte...
+		return stream.offset(data, wordOffset).slice(byteOffset * 8, 8).cast(dfeUInt(8));
+	}
+
+
+}
