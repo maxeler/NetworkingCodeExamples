@@ -42,8 +42,10 @@ Start the UDP forwarding application:
 ```bash
 cd runtime
 ./build.py run_sim
+```
 
-The UDP forwarding app takes the following arguments:```
+The UDP forwarding app takes the following arguments:
+
 ```
 Usage: ./udpforwarding <Top IP> <Bot IP> <multicast_ip> <consumer_ip1> [consumer_ip2 consumer_ip3 ...]
 Top IP - The IP address of the QSFP_TOP_10G_PORT1
@@ -89,7 +91,7 @@ The Multicast generator:
 Will send data through the tap device associated with the TOP port. It will send to the multicast address ```225.0.0.37``` .
 
 
-## Functionality
+### Functionality
 
 The application listens to a multicast feed.
 When data arrives, it extract the message type from the payload (byte 7).
