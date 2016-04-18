@@ -71,7 +71,7 @@ network_config = [
    { 'NAME' : 'QSFP_TOP_10G_PORT1', 'DFE': '172.16.50.1', 'TAP': '172.16.50.10', 'NETMASK' : '255.255.255.0' },
    { 'NAME' : 'QSFP_BOT_10G_PORT1', 'DFE': '172.16.60.1', 'TAP': '172.16.60.10', 'NETMASK' : '255.255.255.0' }
       ]
-```python
+```
 
 Which means the simulated TOP port will be connected to a TAP device that is assigned the IP address ```172.16.50.1```.  
 The BOT port which will go to the consumers is connected to the TAP device with the IP address ```172.16.60.10```.  
