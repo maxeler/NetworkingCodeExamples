@@ -1,0 +1,45 @@
+package com.maxeler.examples.udpforwarding;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.networking.types.UDPOneToManyRXType;
+import com.maxeler.networking.types.UDPOneToOneTXType;
+
+public class UdpForwardingTypes {
+	public static InputFeedLinkType inputFeedLinkType = new InputFeedLinkType();
+	public static ConsumerLinkType consumerLinkType = new ConsumerLinkType();
+	public static EventsStructType eventType = new EventsStructType();
+	public static DecisionRomStructType decisionRomStructType = new DecisionRomStructType();
+
+
+	public static class ConsumerLinkType extends UDPOneToOneTXType { }
+	public static class InputFeedLinkType extends UDPOneToManyRXType { }
+
+	public static class EventsStructType extends DFEStructType {
+		public static String EventCount = "EventCount";
+		public static String MessageType = "MessageType";
+		public static String ForwardDecision = "ForwardDecision";
+		public static String ConsumerId = "ConsumerId";
+		public static String Padding = "padding";
+		public EventsStructType() {
+			super(
+					sft(EventCount, DFETypeFactory.dfeUInt(64)),
+					sft(MessageType, DFETypeFactory.dfeUInt(8)),
+					sft(ForwardDecision, DFETypeFactory.dfeUInt(8)),
+					sft(ConsumerId, DFETypeFactory.dfeUInt(8)),
+					sft(Padding, DFETypeFactory.dfeUInt(40)) // Pad up to 128 bits
+				);
+		}
+	}
+
+	public static class DecisionRomStructType extends DFEStructType {
+		public static String ShouldForward = "ShouldForward";
+		public static String ConsumerId = "ConsumerId";
+		public DecisionRomStructType() {
+			super(
+					sft(ShouldForward, DFETypeFactory.dfeUInt(8)),
+					sft(ConsumerId, DFETypeFactory.dfeUInt(8))
+				);
+		}
+	}
+}
