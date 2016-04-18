@@ -21,6 +21,8 @@ public class UdpForwardingKernel extends Kernel {
 	public UdpForwardingKernel(KernelParameters params) {
 		super(params);
 
+		flush.disabled();
+
 		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
 				UdpForwardingTypes.inputFeedLinkType, constant.var(true),
 				UdpForwardingTypes.inputFeedLinkType.getPositionForField(UdpForwardingTypes.InputFeedLinkType.EOF),
@@ -106,12 +108,14 @@ public class UdpForwardingKernel extends Kernel {
 		DFEVar sof = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.SOF);
 		DFEVar eof = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.EOF);
 		DFEVar mod = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.MOD);
-		//DFEVar socket = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.SOCKET);
+		DFEVar socket = inputStruct.get(UdpForwardingTypes.InputFeedLinkType.SOCKET);
 
 		/*
 		 * Start of message marker
 		 */
 		DFEVar isMessageStart = inputValid & sof;
+
+		debug.simPrintf(isMessageStart, this.getName() + ": Input message on Socket %d\n", socket);
 
 		/*
 		 * Count the number of input packets

@@ -11,7 +11,7 @@ except ImportError, e:
 
 MAXFILES = ['UdpForwarding.max']
 sources = ['udpforwarding.c']
-target = 'udpforwarding'
+application = 'udpforwarding'
 includes = []
 my_cflags = []
 my_ldflags = []
@@ -19,7 +19,7 @@ my_ldflags = []
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)
 s = MaxCompilerSim(dfeModel="ISCA")
-e = Executor(logPrefix="[%s] " % (target))
+e = Executor(logPrefix="[%s] " % (application))
 
 def build():
 	compile()
@@ -30,7 +30,7 @@ def compile():
 	b.compile(sources, extra_cflags=my_cflags)
 
 def link():
-	b.link(sources, target, extra_ldflags=my_ldflags)
+	b.link(sources, application, extra_ldflags=my_ldflags)
 
 def clean():
 	b.clean()
@@ -47,7 +47,7 @@ def restart_sim():
 def run_sim():
 	build()
 	s.start()
-	e.execCommand([ "./" + target ])
+	e.execCommand([ "./" + application, "172.16.50.1", "172.16.60.1", "225.0.0.37", "172.16.60.10", "172.16.60.10"])
 	e.wait()
 #	s.stop()
 	

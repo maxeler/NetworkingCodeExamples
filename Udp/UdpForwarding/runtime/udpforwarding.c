@@ -30,9 +30,9 @@ struct PACKED event {
 	uint64_t : 40;
 };
 
-static void configureDecision(size_t numConsmers);
-static void configureConsumers(size_t numConsumers);
-static void configureMulticastFeed();
+static void init_decision(size_t numConsmers);
+static void init_consumers(size_t numConsumers);
+static void init_multicast_feed();
 static void events_loop();
 
 uint16_t get_consumer_port(size_t consumer_index) {
@@ -41,12 +41,13 @@ uint16_t get_consumer_port(size_t consumer_index) {
 
 int main(int argc, char *argv[])
 {
-	if(argc < 5) {
+	static int num_mandatory_args = 4;
+	if(argc < (num_mandatory_args+1)) {
 		printf("Usage: %s <Top IP> <Bot IP> <multicast_ip> <consumer_ip1> [consumer_ip2 consumer_ip3 ...]\n", argv[0]);
 		return 1;
 	}
 
-	size_t num_consumers = argc - 4;
+	size_t num_consumers = argc - num_mandatory_args;
 
 	inet_aton("255.255.255.0", &netmask);
 	printf("Local DFE Top @ %s\n", argv[1]);
@@ -56,9 +57,10 @@ int main(int argc, char *argv[])
 	printf("Multicast Feed @ %s:%d\n", argv[3], MULTICAST_PORT);
 	inet_aton(argv[3], &multicast_ip);
 
+	remote_ips = malloc(num_consumers * sizeof(struct in_addr));
 	for (size_t i=0; i < num_consumers; i++) {
-		printf("Consumer %zd @ %s:%d\n", i, argv[4 + i], get_consumer_port(i));
-		inet_aton(argv[4 + i], &remote_ips[i]);
+		printf("Consumer %zd @ %s:%d\n", i, argv[num_mandatory_args + i], get_consumer_port(i));
+		inet_aton(argv[num_mandatory_args + i], &remote_ips[i]);
 	}
 
 
@@ -72,10 +74,11 @@ int main(int argc, char *argv[])
 	max_run(engine, action);
 
 
-	configureDecision(num_consumers);
-	configureMulticastFeed();
-	configureConsumers(num_consumers);
+	init_decision(num_consumers);
+	init_multicast_feed();
+	init_consumers(num_consumers);
 
+	printf("Ready, going in to events loop.\n");
 	events_loop();
 
 
@@ -109,7 +112,7 @@ static void events_loop()
 	}
 }
 
-static void configureDecision(size_t numConsmers)
+static void init_decision(size_t numConsmers)
 {
 	max_actions_t *action = max_actions_init(maxfile, NULL);
 	struct decision_rom d;
@@ -123,20 +126,25 @@ static void configureDecision(size_t numConsmers)
 	max_run(engine, action);
 }
 
-static void configureConsumers(size_t numConsumers)
+static void init_consumers(size_t numConsumers)
 {
-	printf("Setting up consumer %zd sockets...", numConsumers);
+	printf("Setting up %zd consumer sockets...\n", numConsumers);
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1, &dfe_bot_ip, &netmask);
+	max_udp_socket_t **consumer_sockets = malloc(sizeof(max_udp_socket_t*) * numConsumers);
+
 	for (size_t i=0; i< numConsumers; i++) {
-		max_udp_socket_t *consumer_socket = max_udp_create_socket_with_number(engine, "Consumers", i);
-		max_udp_bind(consumer_socket, CONSUMER_SRC_PORT);
-		max_udp_connect(consumer_socket, &remote_ips[i], get_consumer_port(i));
+		consumer_sockets[i] = max_udp_create_socket_with_number(engine, "Consumers", i);
+	}
+
+	for (size_t i=0; i< numConsumers; i++) {
+//		max_udp_bind(consumer_sockets[i], CONSUMER_SRC_PORT);
+		max_udp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
 	}
 }
 
-static void configureMulticastFeed()
+static void init_multicast_feed()
 {
-	printf("Setting up Multicast feed socket...");
+	printf("Setting up multicast feed socket...\n");
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
 	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
 	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
