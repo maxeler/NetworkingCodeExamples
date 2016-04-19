@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<project basedir="." default="SignExt" name="bitstreams">
+<project basedir="." default="build" name="bitstreams">
 	<property environment="env"/>
 	<property name="ECLIPSE_HOME" value="${env.MAXCOMPILERDIR}/lib/MaxIDE"/>
 	<property name="debuglevel" value="source,lines,vars"/>
 	<property name="target" value="1.6"/>
-	<property name="source" value="1.6"/>
+	<property name="source" value="1.6"/> 
 
 	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
 
-	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>
+	<property name="maxeda"   value="${env.MAXCOMPILERJCP}"/>
+	<property name="maxnet"   value="${env.MAXCOMPILERNETJCP}"/>
+	<property name="maxpowernet"   value="${env.MAXPOWERNETDIR}/bin"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
+		<pathelement location="${maxnet}"/>
+		<pathelement location="${maxpowernet}"/>
 	</path>
 
 	<target name="init">
@@ -41,8 +45,8 @@
 		</maxjcompiler>
 	</target>
 	
-	<target depends="build" name="SignExt">
-		<java classname="com.maxeler.examples.signExtender.SignExtManager" failonerror="true" fork="yes">
+	<target name="UdpForwarding">
+		<java classname="com.maxeler.examples.udpforwarding.UdpForwardingManager" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />
 			<classpath refid="bitstreams.local.classpath"/>
 		</java>

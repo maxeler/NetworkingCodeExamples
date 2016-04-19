@@ -79,7 +79,7 @@ public class CmeTradingManager extends NetworkManager {
 		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		buildConfig.setMPPRParallelism(params.getMPPRThreads());
 		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
-		buildConfig.setEnableChipscopeInserter(true);
+		//buildConfig.setEnableChipscopeInserter(true);
 		manager.setBuildConfig(buildConfig);
 		manager.build();
 	}
