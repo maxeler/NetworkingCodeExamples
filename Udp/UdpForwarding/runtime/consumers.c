@@ -85,9 +85,11 @@ static void read_consumer(int *consumers, size_t consumer_index)
 
 	ssize_t rx_size = 0;
 
-	while ((rx_size = recv(consumers[consumer_index], rx_buffer, max_buffer_size, 0)) > 0) {
+	while ((rx_size = recv(consumers[consumer_index], rx_buffer, max_buffer_size, MSG_DONTWAIT)) > 0) {
 		printf("Consumer[%zd] Got '%.*s'\n", consumer_index, (int)rx_size, (char *)rx_buffer);
 	}
+
+	if (errno == EWOULDBLOCK) return;
 
 	if (rx_size < 0) {
 		printf("Consumer[%zd] Error waiting for response: %s\n", consumer_index, strerror(errno));
