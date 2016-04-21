@@ -12,7 +12,7 @@
 
 static int create_socket(size_t consumer_index);
 static void event_loop(int *consumers, size_t num_consumers);
-static void read_consumer(int *consumers, size_t consumer_index);
+static void read_consumer(int *consumers, uint32_t consumer_index);
 
 static struct in_addr netmask;
 
@@ -51,7 +51,7 @@ static void event_loop(int *consumers, size_t num_consumers)
 		exit(EXIT_FAILURE);
 	}
 
-	for (size_t i=0; i < num_consumers; i++) {
+	for (uint32_t i=0; i < num_consumers; i++) {
 		ev.events = EPOLLIN;
 		ev.data.u32 = i;
 		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, consumers[i], &ev) == -1) {
@@ -76,7 +76,7 @@ static void event_loop(int *consumers, size_t num_consumers)
 	}
 }
 
-static void read_consumer(int *consumers, size_t consumer_index)
+static void read_consumer(int *consumers, uint32_t consumer_index)
 {
 	static size_t max_buffer_size = 2048;
 	static void *rx_buffer = NULL;
@@ -85,12 +85,14 @@ static void read_consumer(int *consumers, size_t consumer_index)
 
 	ssize_t rx_size = 0;
 
-	while ((rx_size = recv(consumers[consumer_index], rx_buffer, max_buffer_size, 0)) > 0) {
-		printf("Consumer[%zd] Got '%.*s'\n", consumer_index, (int)rx_size, (char *)rx_buffer);
+	while ((rx_size = recv(consumers[consumer_index], rx_buffer, max_buffer_size, MSG_DONTWAIT)) > 0) {
+		printf("Consumer[%u] Got '%.*s'\n", consumer_index, (int)rx_size, (char *)rx_buffer);
 	}
 
-	if (rx_size < 0) {
-		printf("Consumer[%zd] Error waiting for response: %s\n", consumer_index, strerror(errno));
+	if (errno == EWOULDBLOCK) {
+		return;
+	} else if (rx_size < 0) {
+		printf("Consumer[%u] Error waiting for response: %s \n", consumer_index, strerror(errno));
 	}
 
 	return;
