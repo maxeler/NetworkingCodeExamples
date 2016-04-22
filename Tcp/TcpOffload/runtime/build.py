@@ -47,7 +47,7 @@ def restart_sim():
 def run_sim():
 	build()
 	s.start()
-	e.execCommand([ "./" + target ])
+	e.execCommand([ "./" + target, "172.16.50.1", "172.16.50.10", "172.16.50.10" ])
 	e.wait()
 #	s.stop()
 	

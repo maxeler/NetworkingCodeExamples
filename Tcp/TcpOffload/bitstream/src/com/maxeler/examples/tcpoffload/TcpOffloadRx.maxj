@@ -42,10 +42,12 @@ public class TcpOffloadRx extends Kernel {
 
 		DFEVar isStart = inputValid & sof;
 
+		debug.simPrintf(isStart, "Data Rx on socket %d\n", socket);
+
 		DFEStruct header = TcpOffloadTypes.tcpOffloadHeader.newInstance(this);
 		DFEType socketIdType = (DFEType) TcpOffloadTypes.tcpOffloadHeader.getTypeForField(TcpOffloadHeader.SOCKET_ID);
 
-		header[TcpOffloadHeader.SOCKET_ID] <== socket.cast(socketIdType);
+		header[TcpOffloadHeader.SOCKET_ID] <== stream.offset(socket.cast(socketIdType), 1);
 
 
 		DFEVar insertNow = stream.offset(isStart, 1);
@@ -53,9 +55,9 @@ public class TcpOffloadRx extends Kernel {
 
 		DFEStruct toCpu = TcpOffloadTypes.simpleLinkType.newInstance(this);
 		toCpu[SimpleLinkType.SOF] <== insertNow;
-		toCpu[SimpleLinkType.EOF] <== eof;
+		toCpu[SimpleLinkType.EOF] <== inputValid & eof;
 		toCpu[SimpleLinkType.MOD] <== mod;
-		toCpu[SimpleLinkType.DATA] <== insertNow ? header.pack() : data;
+		toCpu[SimpleLinkType.DATA] <== insertNow ? header.pack().cast(data.getType()) : data;
 
 		io.output(TO_CPU, TcpOffloadTypes.simpleLinkType, outputNow) <== toCpu;
 

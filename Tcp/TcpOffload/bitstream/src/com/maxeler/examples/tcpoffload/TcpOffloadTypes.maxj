@@ -27,7 +27,7 @@ public class TcpOffloadTypes {
 
 		public SimpleLinkType() {
 			super(
-					sft(DATA, DFETypeFactory.dfeUInt(64)),
+					sft(DATA, DFETypeFactory.dfeRawBits(64)),
 					sft(SOF, DFETypeFactory.dfeBool()),
 					sft(EOF, DFETypeFactory.dfeBool()),
 					sft(MOD, DFETypeFactory.dfeUInt(3))

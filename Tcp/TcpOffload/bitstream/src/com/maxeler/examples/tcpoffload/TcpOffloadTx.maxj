@@ -38,7 +38,8 @@ public class TcpOffloadTx extends Kernel {
 
 
 
-		DFEVar outputNow = inputValid & ~isStart;
+		DFEVar outputNow = inputValid & ~sof;
+		debug.simPrintf(stream.offset(isStart, -1), "Tx frame to socket %d\n", socketId);
 
 		DFEStruct tcpOut = TcpOffloadTypes.tcpType.getDFEStructType().newInstance(this);
 		tcpOut[TCPType.SOF] <== stream.offset(isStart, -1);
