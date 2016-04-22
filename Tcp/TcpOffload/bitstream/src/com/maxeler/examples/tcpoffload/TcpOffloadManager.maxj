@@ -1,0 +1,55 @@
+package com.maxeler.examples.tcpoffload;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationTechnique;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+import com.maxeler.networking.v1.managers.netlib.TCPStream;
+
+
+public class TcpOffloadManager extends NetworkManager {
+
+	public TcpOffloadManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		TCPStream tcp = addTCPStream("tcp", Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+
+		pushDefaultClock(getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1));
+
+		/*
+		 * RX Kernel
+		 */
+		KernelBlock krx = addKernel(new TcpOffloadRx(makeKernelParameters("tcpOffloadRx")));
+		krx.getInput(TcpOffloadRx.FROM_TCP) <== tcp.getReceiveStream();
+		addFramedStreamToCPU("rx", TcpOffloadTypes.simpleLinkType) <== krx.getOutput(TcpOffloadRx.TO_CPU);
+
+		/*
+		 * TX Kernel
+		 */
+		KernelBlock ktx = addKernel(new TcpOffloadTx(makeKernelParameters("tcpOffloadTx")));
+		ktx.getInput(TcpOffloadTx.FROM_CPU) <== addFramedStreamFromCPU("tx", TcpOffloadTypes.simpleLinkType);
+		tcp.getTransmitStream() <== ktx.getOutput(TcpOffloadTx.TO_TCP);
+
+	}
+
+	public static void main(String[] args) {
+		TcpOffloadParameters params = new TcpOffloadParameters(args);
+		TcpOffloadManager manager = new TcpOffloadManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationTechnique.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}

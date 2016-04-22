@@ -1,0 +1,43 @@
+package com.maxeler.examples.tcpoffload;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+import com.maxeler.networking.v1.kernel_types.TCPType;
+
+public class TcpOffloadTypes {
+	public static TcpOffloadHeader tcpOffloadHeader = new TcpOffloadHeader();
+	public static class TcpOffloadHeader extends DFEStructType {
+		public static final String SOCKET_ID = "socket";
+		public TcpOffloadHeader() {
+			super(
+					sft(SOCKET_ID, DFETypeFactory.dfeUInt(64))
+			);
+		}
+	}
+
+	public static TCPType tcpType = new TCPType();
+
+	public static SimpleLinkType simpleLinkType = new SimpleLinkType();
+	public static class SimpleLinkType extends DFEStructType implements FramedLinkType {
+		public static final String SOF = "sof";
+		public static final String MOD = "mod";
+		public static final String EOF = "eof";
+		public static final String DATA = "data";
+
+		public SimpleLinkType() {
+			super(
+					sft(DATA, DFETypeFactory.dfeRawBits(64)),
+					sft(SOF, DFETypeFactory.dfeBool()),
+					sft(EOF, DFETypeFactory.dfeBool()),
+					sft(MOD, DFETypeFactory.dfeUInt(3))
+			);
+		}
+
+		@Override public DFEStructType getDFEStructType() { return this; }
+		@Override public String getData() {	 return DATA;	 }
+		@Override public String getEOF()  {	 return EOF;  }
+		@Override public String getMod()  {	 return MOD;  }
+		@Override public String getSOF()  {	 return SOF;  }
+	}
+}
