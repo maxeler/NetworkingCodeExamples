@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
 	init_sockets();
 	connect_remotes();
 
+	printf("Sockets connected. Going in to events loop.\n");
 
 	echo_loop();
 
@@ -98,6 +99,14 @@ static void echo_loop()
 			memcpy(tx_frame, rx_frame, rx_frame_size);
 			max_framed_stream_write(tx_stream, 1, &rx_frame_size);
 			max_framed_stream_discard(rx_stream, 1);
+		}
+
+		for (size_t i=0; i < num_remotes; i++) {
+			max_tcp_connection_state_t state = max_tcp_get_connection_state(tcp_sockets[i]);
+			if (state != MAX_TCP_STATE_ESTABLISHED) {
+				printf("Socket %zd is not longer established, terminating.", i);
+				return;
+			}
 		}
 	}
 }
