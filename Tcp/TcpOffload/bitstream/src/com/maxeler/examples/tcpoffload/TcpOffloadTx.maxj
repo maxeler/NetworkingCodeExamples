@@ -1,0 +1,53 @@
+package com.maxeler.examples.tcpoffload;
+
+import com.maxeler.examples.tcpoffload.TcpOffloadTypes.SimpleLinkType;
+import com.maxeler.examples.tcpoffload.TcpOffloadTypes.TcpOffloadHeader;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.types.TCPType;
+
+public class TcpOffloadTx extends Kernel {
+	public static String FROM_CPU = "cpu";
+	public static String TO_TCP = "tcp";
+
+	public TcpOffloadTx(KernelParameters params) {
+		super(params);
+		flush.disabled();
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(FROM_CPU, TcpOffloadTypes.simpleLinkType,
+				TcpOffloadTypes.simpleLinkType.getPositionForField(SimpleLinkType.EOF));
+
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar sof = inputStruct.get(SimpleLinkType.SOF);
+		DFEVar eof = inputStruct.get(SimpleLinkType.EOF);
+		DFEVar mod = inputStruct.get(SimpleLinkType.MOD);
+		DFEVar data = inputStruct.get(SimpleLinkType.DATA);
+
+		DFEVar isStart = inputValid & sof;
+
+		DFEType socketIdType = (DFEType) TcpOffloadTypes.tcpType.getDFEStructType().getTypeForField(TCPType.SOCKET);
+		DFEStruct header = Reductions.streamHold(TcpOffloadTypes.tcpOffloadHeader.unpack(data), isStart);
+		DFEVar socketId = (DFEVar) header.get(TcpOffloadHeader.SOCKET_ID).cast(socketIdType);
+
+
+
+		DFEVar outputNow = inputValid & ~isStart;
+
+		DFEStruct tcpOut = TcpOffloadTypes.tcpType.getDFEStructType().newInstance(this);
+		tcpOut[TCPType.SOF] <== stream.offset(isStart, -1);
+		tcpOut[TCPType.EOF] <== eof;
+		tcpOut[TCPType.MOD] <== mod;
+		tcpOut[TCPType.SOCKET] <== socketId;
+		tcpOut[TCPType.DATA] <== data;
+
+
+		io.output(TO_TCP, TcpOffloadTypes.tcpType.getDFEStructType(), outputNow) <== tcpOut;
+	}
+}
