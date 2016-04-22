@@ -1,6 +1,6 @@
 # TCP Forwarding
 
-Input: UDP Multicast Feed
+Input: UDP Multicast Feed  
 Output: Same message over TCP to a selected consumer
 
 
