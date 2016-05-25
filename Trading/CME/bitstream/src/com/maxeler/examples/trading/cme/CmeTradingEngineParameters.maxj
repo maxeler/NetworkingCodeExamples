@@ -16,7 +16,7 @@ public class CmeTradingEngineParameters extends ApplicationParameters {
 	@Override
 	protected void declarations() {
 		 declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
-		 declareParam("target", Target.class, Target.DFE);
+		 declareParam("target", Target.class, Target.DFE_SIM);
 		 declareParam("hasStreamStatus", DataType.BOOL, true);
 		 declareParam("mdConnectionA", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		 declareParam("mdConnectionB", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_BOT_10G_PORT1);

@@ -85,6 +85,7 @@ public class CmeTradingTypes {
 
 			// addField(Tag, Length in Bytes)
 			// Expects Strings to be used to save conversion time
+			addField(Tag.SenderSubID, 7);
 			addField(Tag.Account,       5);
 			addField(Tag.OrderQty,     10);
 			addField(Tag.OrdType,       1);
