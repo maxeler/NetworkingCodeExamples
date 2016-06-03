@@ -1,0 +1,10 @@
+*.o
+*.a
+*.la
+*.so
+*.pyc
+*.pcap
+*.swp
+bin
+.metadata*
+.deps

@@ -1,0 +1,16 @@
+package com.maxeler.examples.tcpfastpathoffload;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+public class TcpFastPathOffloadTypes {
+	public static TcpOffloadHeader tcpOffloadHeader = new TcpOffloadHeader();
+	public static class TcpOffloadHeader extends DFEStructType {
+		public static final String SOCKET_ID = "socket";
+		public TcpOffloadHeader() {
+			super(
+					sft(SOCKET_ID, DFETypeFactory.dfeUInt(32))
+			);
+		}
+	}
+}
