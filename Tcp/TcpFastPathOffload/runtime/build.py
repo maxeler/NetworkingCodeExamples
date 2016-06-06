@@ -9,13 +9,13 @@ except ImportError, e:
 	print "Couldn't find project-utils modules."
 	sys.exit(1)
 
-MAXTCPDIR = os.environ['MAXTCPDIR']
+MAXTCPFPDIR = os.environ['MAXTCPFPDIR']
 
 MAXFILES = ['TcpFPOffload.max']
 sources = ['tcpfpoffload.c']
 target = 'tcpfpoffload'
-my_cflags = ['-I%s/runtime/include' % MAXTCPDIR]
-my_ldflags = ['-L%s/runtime' % MAXTCPDIR, '-lmaxtcp']
+my_cflags = ['-I%s/runtime/include' % MAXTCPFPDIR]
+my_ldflags = ['-L%s/runtime' % MAXTCPFPDIR, '-lmaxtcp']
 
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)

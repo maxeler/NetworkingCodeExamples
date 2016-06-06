@@ -11,7 +11,7 @@
 
 #include <MaxSLiCInterface.h>
 #include <MaxSLiCNetInterface.h>
-#include <MaxTCP.h>
+#include <max_tcp_fast_path.h>
 
 extern max_file_t *TcpFPOffload_init();
 static int parse_args(int argc, char *argv[]);
@@ -26,7 +26,7 @@ static size_t num_remotes = 0;
 
 static max_file_t *maxfile;
 static max_engine_t *engine;
-static max_tcp_t *max_tcp;
+static max_tcpfp_t *max_tcpfp;
 
 
 #define REMOTE_PORT_BASE 10000
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 
 
 
-	max_fast_tcp_destroy(max_tcp);
+	max_tcpfp_destroy(max_tcpfp);
 	max_unload(engine);
 	max_file_free(maxfile);
 
@@ -106,9 +106,9 @@ static void echo_loop()
 		}
 
 		for (size_t i=0; i < num_remotes; i++) {
-			max_tcp_socket_state_t state;
-			max_fast_tcp_get_socket_state(max_tcp, i, &state);
-			if (state != MAXTCP_SOCKET_STATE_ESTABLISHED) {
+			max_tcpfp_socket_state_t state;
+			max_tcpfp_get_socket_state(max_tcpfp, i, &state);
+			if (state != MAX_TCPFP_SOCKET_STATE_ESTABLISHED) {
 				printf("Socket %zd is not longer established, terminating.", i);
 				return;
 			}
@@ -122,8 +122,8 @@ static void init_sockets()
 	max_ip_config(engine, connection, &dfe_top_ip, &netmask);
 	struct in_addr gw = { .s_addr = 0 };
 	max_ip_route_set_default_gw(engine, connection, &gw);
-	max_tcp = max_fast_tcp_init(maxfile, engine, "tcp");
-	if(max_tcp == NULL) {
+	max_tcpfp = max_tcpfp_init(maxfile, engine, "tcp");
+	if(max_tcpfp == NULL) {
 		err(1, "max_fast_tcp_init failed");
 	}
 }
@@ -132,12 +132,12 @@ static void connect_remotes()
 {
 	struct timeval timeout = { .tv_sec = 5, .tv_usec = 0 };
 	for (size_t i=0; i< num_remotes; i++) {
-		max_tcp_error_t e = max_fast_tcp_connect(max_tcp, i, &remote_ips[i], get_remote_port(i));
+		max_tcpfp_error_t e = max_tcpfp_connect(max_tcpfp, i, &remote_ips[i], get_remote_port(i));
 		if (e) {
 			err(1, "max_fast_tcp_connect returned error: %s",
-					max_fast_tcp_get_error_message(e));
+					max_tcpfp_get_error_message(e));
 		}
-		max_fast_tcp_wait_for_socket_state(max_tcp, i, MAXTCP_SOCKET_STATE_ESTABLISHED, &timeout);
+		max_tcpfp_wait_for_socket_state(max_tcpfp, i, MAX_TCPFP_SOCKET_STATE_ESTABLISHED, &timeout);
 	}
 }
 
