@@ -8,7 +8,7 @@
 	<maxelerVersion></maxelerVersion>
 	<maxelerBuildSystemVersion></maxelerBuildSystemVersion>
 	<projects>
-		<project>MaxTCPv3 runtime</project>
+		<project>MaxTCPFastPath runtime</project>
 		<project>slicinterface</project>
 		<project>slicnetinterface</project>
 	</projects>

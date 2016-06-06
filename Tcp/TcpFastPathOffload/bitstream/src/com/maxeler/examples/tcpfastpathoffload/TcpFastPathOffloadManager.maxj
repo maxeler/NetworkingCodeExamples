@@ -9,7 +9,7 @@ import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
 import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
-import com.maxeler.tcp.v3.MaxTcpFastPath;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath;
 
 
 public class TcpFastPathOffloadManager extends NetworkManager {
