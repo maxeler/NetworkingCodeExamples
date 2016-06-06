@@ -10,6 +10,7 @@ import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
 import com.maxeler.tcp.fastpath.MaxTcpFastPath;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath.ChecksumMode;
 
 
 public class TcpFastPathOffloadManager extends NetworkManager {
@@ -22,7 +23,7 @@ public class TcpFastPathOffloadManager extends NetworkManager {
 		Max4NetworkConnection connection = Max4NetworkConnection.QSFP_TOP_10G_PORT1;
 		network_config.setEthernetMacType(EthernetMacType.ULTRA_LOW_LATENCY);
 
-		MaxTcpFastPath tcp = MaxTcpFastPath.create(this, "tcp", connection, true);
+		MaxTcpFastPath tcp = MaxTcpFastPath.create(this, "tcp", connection, ChecksumMode.AUTO_CALCULATED);
 
 		pushDefaultClock(getNetworkClock(connection, NetworkClocks.CLOCK_32BIT));
 
