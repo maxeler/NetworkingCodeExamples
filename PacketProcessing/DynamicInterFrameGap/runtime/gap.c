@@ -18,6 +18,7 @@
 
 
 #include "MaxSLiCInterface.h"
+#include "MaxSLiCNetInterface.h"
 
 static void dump(void *v, size_t size) {
 	uint64_t *b = v;
@@ -53,7 +54,7 @@ int main(int argc, char *argv[]) {
 
 	// Now, stream in some frames and see what happens.
 
-	for (size_t i=0 ; i < 8; i++) {
+	for (size_t i=0 ; i < 10; i++) {
 		void *f;
 		while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
 

@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include "MaxSLiCInterface.h"
+#include "MaxSLiCNetInterface.h"
 
 extern max_file_t *UdpForwarding_init();
 static struct in_addr netmask;

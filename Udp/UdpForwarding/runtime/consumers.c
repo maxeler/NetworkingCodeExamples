@@ -12,7 +12,7 @@
 
 static int create_socket(size_t consumer_index);
 static void event_loop(int *consumers, size_t num_consumers);
-static void read_consumer(int *consumers, size_t consumer_index);
+static void read_consumer(int *consumers, uint32_t consumer_index);
 
 static struct in_addr netmask;
 
@@ -51,7 +51,7 @@ static void event_loop(int *consumers, size_t num_consumers)
 		exit(EXIT_FAILURE);
 	}
 
-	for (size_t i=0; i < num_consumers; i++) {
+	for (uint32_t i=0; i < num_consumers; i++) {
 		ev.events = EPOLLIN;
 		ev.data.u32 = i;
 		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, consumers[i], &ev) == -1) {
@@ -76,7 +76,7 @@ static void event_loop(int *consumers, size_t num_consumers)
 	}
 }
 
-static void read_consumer(int *consumers, size_t consumer_index)
+static void read_consumer(int *consumers, uint32_t consumer_index)
 {
 	static size_t max_buffer_size = 2048;
 	static void *rx_buffer = NULL;

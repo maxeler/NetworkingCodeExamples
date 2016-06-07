@@ -9,9 +9,13 @@
 	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
 
 	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>
+	<property name="networking"   value="${env.MAXCOMPILERNETDIR}/lib/MaxCompilerNet.jar"/>
+	<property name="maxpowernet"   value="/scratch/itay/workspace/maxpowernet/maxpowernet-devel/bin"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
+		<pathelement location="${networking}"/>
+		<pathelement location="${maxpowernet}"/>
 	</path>
 
 	<target name="init">

@@ -1,0 +1,72 @@
+package com.maxeler.examples.clockenable;
+
+import maxpower.kernel.lite.LiteUtils;
+
+import com.maxeler.examples.clockenable.ClockEnableTypes.SomeLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+public class ClockEnableKernel extends KernelLite {
+	public static String INPUT = "inputFrame";
+	public static String OUTPUT = "outputFrame";
+	private SomeLinkType linkType;
+
+	public ClockEnableKernel(NetworkManager owner) {
+		super(owner, "ClockEnableKernel");
+
+		linkType = ClockEnableTypes.someLinkType;
+
+		int inputStallLatency = 8;
+
+		PushInput<DFEStruct> input = io.pushInput(INPUT, linkType, inputStallLatency);
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar inputEof = (DFEVar)inputStruct.get(linkType.getEOF());
+
+
+		/*
+		 * Detect non-contiguous packets
+		 */
+		DFEVar clockEnable = LiteUtils.makeContiguousStall(INPUT, inputValid, inputEof);
+
+		pushStall(clockEnable);
+
+		DFEStruct outputStruct = compute(inputStruct, inputValid);
+		DFEVar outputValid = inputValid;
+
+
+		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, inputStallLatency);
+		pushOut.data <== outputStruct;
+		pushOut.valid <== outputValid;
+
+		popStall();
+
+
+
+		input.stall <== pushOut.stall;
+	}
+
+	DFEStruct compute(DFEStruct input, DFEVar valid) {
+		DFEVar sof = (DFEVar)input.get(linkType.getSOF());
+		DFEVar eof = (DFEVar)input.get(linkType.getEOF());
+		DFEVar mod = (DFEVar)input.get(linkType.getMod());
+		DFEVar data = input.get(linkType.getData());
+
+		DFEVar result = (data * (data + 1)) / 3;
+
+//		debug.simPrintf(valid, "Got sof=%d, eof=%d, mod=%d, data: 0x%x --> result: 0x%x\n", data, sof, eof, mod, result);
+
+		DFEStruct outputStruct = linkType.newInstance(this);
+		outputStruct[linkType.getSOF()] <== sof;
+		outputStruct[linkType.getEOF()] <== eof;
+		outputStruct[linkType.getMod()] <== mod;
+		outputStruct[linkType.getData()] <== result;
+
+		return outputStruct;
+	}
+}

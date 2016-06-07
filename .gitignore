@@ -5,6 +5,8 @@
 *.max
 *.pyc
 *.pcap
+*.swp
 bin
 .metadata*
 .deps
+.classpath

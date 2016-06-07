@@ -1,0 +1,81 @@
+package com.maxeler.examples.stalllatency;
+
+import maxpower.kernel.lite.LiteIo;
+import maxpower.kernel.lite.utils.FrameIo.InputInterFrameGap;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+
+import com.maxeler.examples.stalllatency.StallLatencyTypes.SomeLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+public class StallLatencyKernel extends KernelLite {
+	public static String INPUT = "inputFrame";
+	public static String OUTPUT = "outputFrame";
+	private final SomeLinkType linkType;
+
+	public StallLatencyKernel(NetworkManager owner) {
+		super(owner, "StallLatencyKernel");
+
+		linkType = StallLatencyTypes.someLinkType;
+
+		int enforcedMinimumInterFrameGap = 4;
+
+		InputInterFrameGap<DFEStruct> input = LiteIo.inputInterFrameGap(this, INPUT, linkType, new InterFrameGapSpec(enforcedMinimumInterFrameGap));
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+
+
+		/*
+		 * Core frame processing logic should go in the compute method
+		 */
+		Output output = compute(inputStruct, inputValid);
+
+		DFEVar outputStall = dfeBool().newInstance(this);
+
+		/*
+		 * Calculate the required stall latency by measuring the compute and stall pipelines.
+		 */
+
+		/* Compute path */
+		OffsetExpr outputStallLatency = stream.measureDistance("computePath",
+				(DFEVar)inputStruct.get(linkType.getData()), (DFEVar)output.data.get(linkType.getData()));
+		/* Output stall to Input Stall path */
+		outputStallLatency += stream.measureDistance("inputStallPath", outputStall, input.stall);
+		/* Input stall latency */
+		outputStallLatency += input.getStallLatency();
+
+
+		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, outputStallLatency);
+
+		pushOut.data <== output.data;
+		pushOut.valid <== output.valid;
+		outputStall <== pushOut.stall;
+
+		input.stall <== optimization.pipeline(outputStall);
+
+	}
+
+	private class Output {
+		public DFEStruct data;
+		public DFEVar valid;
+	}
+
+	private Output compute(DFEStruct inputStruct, DFEVar inputValid) {
+		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
+		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
+		DFEVar data = inputStruct.get(linkType.getData());
+
+
+		debug.simPrintf(inputValid, "Got data: 0x%x, sof=%d, eof=%d\n", data, sof, eof);
+
+		Output output = new Output();
+		output.data = inputStruct;
+		output.valid = inputValid;
+		return output;
+	}
+}

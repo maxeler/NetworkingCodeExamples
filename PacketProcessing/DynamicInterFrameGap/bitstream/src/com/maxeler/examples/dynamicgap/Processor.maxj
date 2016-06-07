@@ -1,60 +1,102 @@
 package com.maxeler.examples.dynamicgap;
 
-import com.maxeler.examples.dynamicgap.Types.LinkWithGapIndicator;
-import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
-import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
-import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.DelimiterMode;
-import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
-import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingMode;
+import maxpower.kernel.lite.LiteIo;
+import maxpower.kernel.lite.LiteUtils;
+import maxpower.kernel.lite.utils.FrameIo.FrameInput;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+
+import com.maxeler.examples.dynamicgap.Types.DynamicGapLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Optimization.PipelinedOps;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.managers.NetworkManager;
 
-public class Processor extends Kernel {
+public class Processor extends KernelLite {
 	public static String INPUT = "inputFrame";
 	public static String OUTPUT = "outputFrame";
 
-	public Processor(KernelParameters parameters) {
-		super(parameters);
-		flush.disabled();
+	public Processor(NetworkManager owner) {
+		super(owner, "processor");
 
-		LinkWithGapIndicator linkType = Types.linkWithGapIndicator;
+		DynamicGapLinkType linkType = Types.dynamicGapLinkType;
 
-		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
-				linkType.getDFEStructType(),
-				constant.var(true),
-				linkType.getDFEStructType().getPositionForField(linkType.getEOF()),
-				DelimiterMode.EOF_POSITION,
-				0, // No inter-frame-gap
-				NonBlockingMode.NO_TRICKLING);
+		DFEVar requiredGap = dfeUInt(8).newInstance(this);
 
+		FrameInput<DFEStruct> input = LiteIo.interFrameGapInput(this, INPUT, linkType, new InterFrameGapSpec(requiredGap));
 
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
-		DFEVar sof = inputValid & (DFEVar)inputStruct.get(linkType.getSOF());
-		DFEVar eof = inputValid & (DFEVar)inputStruct.get(linkType.getEOF());
-		DFEVar isGap = inputStruct.get(linkType.getGapIndicator());
-		DFEVar newValid = inputValid & ~isGap;
+		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
+		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
+		DFEVar data = inputStruct.get(linkType.getData());
+
+		DFEVar pipeStall = LiteUtils.makeContiguousStall(INPUT, inputValid, eof);
+		pushStall(pipeStall);
+
+		/*
+		 * Based on the input frame, find out what the inter-frame-gap should be.
+		 *
+		 * Lets assume the 20th byte (0 base) of the packet is the MessageType.
+		 * If MessageType = 'G' then insert a Gap of 100 cycles. Otherwise, Gap = 0.
+		 */
 
 
-		DFEVar packetNumber = control.count.makeCounter(control.count.makeParams(16).withEnable(eof)).getCount();
-		DFEVar packetIndex = control.count.makeCounter(control.count.makeParams(16).withReset(sof).withEnable(inputValid)).getCount();
+
+		DFEVar isStart = sof & inputValid;
+		DFEVar isEnd = eof & inputValid;
+		// Get 20th byte
+		DFEVar messageType = getByte(data, 20);
+		requiredGap <== Reductions.streamHold(messageType === constant.var(dfeUInt(8), 'G') ? constant.var(dfeUInt(8), 100) : constant.var(dfeUInt(8), 0), isStart);
+
+
+
+
+		DFEVar packetNumber = control.count.makeCounter(control.count.makeParams(16).withEnable(isEnd)).getCount();
+		DFEVar packetIndex = control.count.makeCounter(control.count.makeParams(16).withReset(isStart).withEnable(inputValid)).getCount();
 
 
 		/*
 		 * The input now will have a gap packet in between normal packets.
 		 */
-		debug.simPrintf(inputValid, "Processor frame[%d]: [%d] is gap? %d, sof %d, eof %d, data 0x%x\n",
+		debug.simPrintf(inputValid, "Processor frame[%d]: [%d] sof %d, eof %d, data 0x%x\n",
 				packetNumber,
 				packetIndex,
-				inputStruct.get(linkType.getGapIndicator()),
 				inputStruct.get(linkType.getSOF()),
 				inputStruct.get(linkType.getEOF()),
 				inputStruct.get(linkType.getData()));
 
 
+		DFEStruct outputData = linkType.newInstance(this);
+		outputData <== inputStruct;
 
+		optimization.pushPipeliningFactor(0, PipelinedOps.ALL);
+		DFEVar outputValid = (inputValid & ~pipeStall);
+		optimization.popPipeliningFactor(PipelinedOps.ALL);
 
-		io.output(OUTPUT, linkType, newValid) <== inputStruct;
+//		OffsetExpr stallLatency = stream.measureDistance("inputToOutputValid", inputValid, outputValid);
+
+		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, 8);
+
+		pushOut.data <== outputData;
+		pushOut.valid <== outputValid;
+
+		popStall();
+
+		input.stall <== optimization.pipeline(pushOut.stall);
+
+	}
+
+	public DFEVar getByte(DFEVar data, int offset) {
+		int bytesPerWord = data.getType().getTotalBytes();
+
+		int wordOffset = offset / bytesPerWord;
+		int byteOffset = offset % bytesPerWord;
+
+		// 8 bits in a byte...
+		return stream.offset(data, wordOffset).slice(byteOffset * 8, 8).cast(dfeUInt(8));
 	}
 
 }

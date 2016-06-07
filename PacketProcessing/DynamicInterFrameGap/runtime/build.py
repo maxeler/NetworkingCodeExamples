@@ -13,6 +13,7 @@ except ImportError, e:
 
 MAXOSDIR = os.environ['MAXELEROSDIR']
 MAXCOMPILERDIR = os.environ['MAXCOMPILERDIR']
+MAXCOMPILERNETDIR = os.environ['MAXCOMPILERNETDIR']
 DFE_MODEL = 'ISCA'
 
 MAXFILE = 'Gap.max'
@@ -31,15 +32,15 @@ def slicCompile():
 
 def getMaxCompilerInc():
 	"""Return the includes to be used in the compilation."""
-	return ['-I.', '-I%s/include' % MAXOSDIR, '-I%s/include/slic' % MAXCOMPILERDIR]
+	return ['-I.', '-I%s/include' % MAXOSDIR, '-I%s/include/slic' % MAXCOMPILERDIR, '-I%s/include/slicnet' % MAXCOMPILERNETDIR]
 
 def getMaxCompilerLibs():
 	"""Return the libraries to be used in linking."""
-	return ['-L%s/lib' % MAXCOMPILERDIR, '-L%s/lib' % MAXOSDIR, '-lslic', '-lmaxeleros', '-lm', '-lpthread']
+	return ['-L%s/lib' % MAXCOMPILERDIR, '-L%s/lib' % MAXOSDIR, '-L%s/lib' % MAXCOMPILERNETDIR, '-lslicnet', '-lslic', '-lmaxeleros', '-lm', '-lpthread']
 
 def getLinkerLibs():
 	"""Returns the libraries to be used for linking."""
-	return getMaxCompilerLibs() +  [MAXFILE.replace('.max', '.o')]
+	return  [MAXFILE.replace('.max', '.o')] + getMaxCompilerLibs()
 
 
 cflags = ['-ggdb', '-O2', '-fPIC', 

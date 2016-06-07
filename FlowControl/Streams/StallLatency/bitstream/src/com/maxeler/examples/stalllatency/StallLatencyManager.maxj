@@ -1,0 +1,38 @@
+package com.maxeler.examples.stalllatency;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class StallLatencyManager extends NetworkManager {
+
+	public StallLatencyManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		KernelBlock k = addKernel(new StallLatencyKernel(this));
+		k.getInput(StallLatencyKernel.INPUT) <== addStreamFromCPU("src");
+		addStreamToCPU("dst") <== k.getOutput(StallLatencyKernel.OUTPUT);
+	}
+
+	public static void main(String[] args) {
+		StallLatencyParameters params = new StallLatencyParameters(args);
+		StallLatencyManager manager = new StallLatencyManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}

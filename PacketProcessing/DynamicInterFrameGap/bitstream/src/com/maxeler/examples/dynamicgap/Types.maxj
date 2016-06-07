@@ -5,21 +5,19 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
 
 public class Types {
-	public static LinkWithGapIndicator linkWithGapIndicator = new LinkWithGapIndicator();
-	public static class LinkWithGapIndicator extends DFEStructType implements FramedLinkType {
-		private static final String GAP = "gap";
+	public static DynamicGapLinkType dynamicGapLinkType = new DynamicGapLinkType();
+	public static class DynamicGapLinkType extends DFEStructType implements FramedLinkType {
 		private static final String SOF = "sof";
 		private static final String MOD = "mod";
 		private static final String EOF = "eof";
 		private static final String DATA = "data";
 
-		public LinkWithGapIndicator() {
+		public DynamicGapLinkType() {
 			super(
 					sft(DATA, DFETypeFactory.dfeUInt(64)),
 					sft(SOF, DFETypeFactory.dfeBool()),
 					sft(EOF, DFETypeFactory.dfeBool()),
-					sft(MOD, DFETypeFactory.dfeUInt(3)),
-					sft(GAP, DFETypeFactory.dfeBool())
+					sft(MOD, DFETypeFactory.dfeUInt(3))
 					);
 		}
 
@@ -28,7 +26,5 @@ public class Types {
 		@Override public String getEOF()  {	 return EOF;  }
 		@Override public String getMod()  {	 return MOD;  }
 		@Override public String getSOF()  {	 return SOF;  }
-		public String getGapIndicator()   { return GAP;  }
-
 	}
 }
