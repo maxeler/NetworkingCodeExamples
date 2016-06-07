@@ -14,8 +14,8 @@ MAXTCPFPDIR = os.environ['MAXTCPFPDIR']
 MAXFILES = ['TcpFPOffload.max']
 sources = ['tcpfpoffload.c']
 target = 'tcpfpoffload'
-my_cflags = ['-I%s/runtime/include' % MAXTCPFPDIR]
-my_ldflags = ['-L%s/runtime' % MAXTCPFPDIR, '-lmaxtcp']
+my_cflags = ['-I%s/include' % MAXTCPFPDIR]
+my_ldflags = ['-L%s/lib' % MAXTCPFPDIR, '-lmaxtcp']
 
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)
