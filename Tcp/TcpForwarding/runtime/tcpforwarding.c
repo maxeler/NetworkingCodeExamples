@@ -1,12 +1,10 @@
 #define _GNU_SOURCE
 
-
 #include "common.h"
 
 #include "MaxSLiCInterface.h"
-#include "MaxSLiCNetInterface.h"
 
-extern max_file_t *UdpForwarding_init();
+extern max_file_t *TcpForwarding_init();
 static struct in_addr netmask;
 static struct in_addr dfe_top_ip;
 static struct in_addr dfe_bot_ip;
@@ -21,20 +19,23 @@ static max_engine_t *engine;
 struct PACKED decision_rom {
 	uint8_t should_forward;
 	uint8_t consumer_id;
+	uint64_t : 48;
 };
 
 struct PACKED event {
 	uint64_t event_count;
-	uint8_t message_type;
-	uint8_t forward_decision;
-	uint8_t consumer_id;
+	uint8_t  message_type;
+	uint8_t  forward_decision;
+	uint8_t  consumer_id;
 	uint64_t : 40;
 };
 
 static void init_decision(size_t numConsmers);
-static void init_consumers(size_t numConsumers);
+static void init_consumers(size_t num_consumers);
 static void init_multicast_feed();
-static void events_loop();
+static void events_loop(size_t num_consumers);
+
+static max_tcp_socket_t **consumer_sockets;
 
 uint16_t get_consumer_port(size_t consumer_index) {
 	return CONSUMER_DST_PORT + consumer_index;
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
 	}
 
 
-	maxfile = UdpForwarding_init();
+	maxfile = TcpForwarding_init();
 	engine = max_load(maxfile, "*");
 
 
@@ -74,13 +75,14 @@ int main(int argc, char *argv[])
 	max_actions_t *action = max_actions_init(maxfile, NULL);
 	max_run(engine, action);
 
+	consumer_sockets = malloc(sizeof(max_tcp_socket_t*) * num_consumers);
 
 	init_decision(num_consumers);
 	init_multicast_feed();
 	init_consumers(num_consumers);
 
 	printf("Ready, going in to events loop.\n");
-	events_loop();
+	events_loop(num_consumers);
 
 
 	max_unload(engine);
@@ -89,7 +91,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-static void events_loop()
+static void events_loop(size_t num_consumers)
 {
 	void *event_buffer;
 	size_t num_slots = 512;
@@ -121,25 +123,25 @@ static void init_decision(size_t numConsmers)
 
 	for (size_t msgType = 0; msgType < 256; msgType++) {
 		d.consumer_id = msgType % numConsmers;
-		d.should_forward = msgType % 2 == 0;
+		d.should_forward = msgType % 7 != 0;
 		max_set_mem_uint64t(action, "fwd", "decisionRom", msgType, *v);
 	}
 	max_run(engine, action);
 }
 
-static void init_consumers(size_t numConsumers)
+static void init_consumers(size_t num_consumers)
 {
-	printf("Setting up %zd consumer sockets...\n", numConsumers);
+	printf("Setting up %zd consumer sockets...\n", num_consumers);
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1, &dfe_bot_ip, &netmask);
-	max_udp_socket_t **consumer_sockets = malloc(sizeof(max_udp_socket_t*) * numConsumers);
 
-	for (size_t i=0; i< numConsumers; i++) {
-		consumer_sockets[i] = max_udp_create_socket_with_number(engine, "Consumers", i);
+	for (size_t i=0; i< num_consumers; i++) {
+		consumer_sockets[i] = max_tcp_create_socket_with_number(engine, "Consumers", i);
 	}
 
-	for (size_t i=0; i< numConsumers; i++) {
-//		max_udp_bind(consumer_sockets[i], CONSUMER_SRC_PORT);
-		max_udp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
+	struct timeval timeout = { .tv_sec = 5, .tv_usec = 0 };
+	for (size_t i=0; i< num_consumers; i++) {
+		max_tcp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
+		max_tcp_await_state(consumer_sockets[i], MAX_TCP_STATE_ESTABLISHED, &timeout);
 	}
 }
 

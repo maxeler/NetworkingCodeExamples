@@ -67,6 +67,8 @@ int main(int argc, char *argv[]) {
 
 	const char* session_id    = "ABC";
 	const char* sender_sub_id = "subID";
+	const char* market_seg_id = "segID";
+	const char* target_sub_id = "Send123";
 	const char* firm_id       = "123";
 	const char* location_id   = "GB";
 	const char* password      = "password";
@@ -77,6 +79,7 @@ int main(int argc, char *argv[]) {
 			session_id,
 			sender_sub_id,
 			firm_id,
+			market_seg_id,
 			MAXCMEILINK_CUSTOMERORFIRM_CUSTOMER,
 			MAXCMEILINK_CTICODE_1,
 			location_id,
@@ -84,6 +87,7 @@ int main(int argc, char *argv[]) {
 			MAXELER_APPLICATION_SYSTEM_NAME,
 			MAXELER_TRADING_SYSTEM_VERSION,
 			MAXELER_APPLICATION_SYSTEM_VENDOR,
+			target_sub_id,
 			heartbeat_interval,
 			&timeout))
 	{

@@ -1,7 +1,9 @@
-package com.maxeler.examples.udpforwarding;
+package com.maxeler.examples.tcpforwarding;
 
-import com.maxeler.examples.udpforwarding.UdpForwardingTypes.DecisionRomStructType;
-import com.maxeler.examples.udpforwarding.UdpForwardingTypes.EventsStructType;
+import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.ConsumerLinkType;
+import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.DecisionRomStructType;
+import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.EventsStructType;
+import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.InputFeedLinkType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
@@ -10,49 +12,44 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
-import com.maxeler.networking.v1.kernel_types.UDPOneToManyRXType;
-import com.maxeler.networking.v1.kernel_types.UDPOneToOneTXType;
 
-public class UdpForwardingKernel extends Kernel {
+public class TcpForwardingKernel extends Kernel {
 	public static String INPUT = "inputFeed";
 	public static String OUTPUT_CONSUMERS = "toConsumers";
 	public static String OUTPUT_EVENTS_TO_CPU = "events";
-    private UdpForwardingTypes types;
 
-	public UdpForwardingKernel(KernelParameters params, UdpForwardingTypes types) {
+	public TcpForwardingKernel(KernelParameters params) {
 		super(params);
-
 		flush.disabled();
-		this.types = types;
 
 		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
-		    types.inputFeedLinkType.getDFEStructType(),
-		    types.inputFeedLinkType.getDFEStructType().getPositionForField(types.inputFeedLinkType.getEOF()));
+				TcpForwardingTypes.inputFeedLinkType,
+				TcpForwardingTypes.inputFeedLinkType.getPositionForField(TcpForwardingTypes.InputFeedLinkType.EOF));
 
 		InputMessage inputMessage = processInputFeed(input);
 		ConsumerDecision decision = makeDecision(inputMessage);
 
-		io.output(OUTPUT_CONSUMERS, types.consumerLinkType.getDFEStructType(),
+		io.output(OUTPUT_CONSUMERS, TcpForwardingTypes.consumerLinkType.getDFEStructType(),
 				inputMessage.valid & decision.shouldForward) <== genConsumerOutput(inputMessage, decision);
 
-		io.output(OUTPUT_EVENTS_TO_CPU, types.eventType,
+		io.output(OUTPUT_EVENTS_TO_CPU, TcpForwardingTypes.eventType,
 				inputMessage.isMessageStart) <== genCpuEvent(inputMessage, decision);
 	}
 
 	private DFEStruct genConsumerOutput(InputMessage inputMessage,	ConsumerDecision decision) {
-		DFEStruct consumerLink = types.consumerLinkType.getDFEStructType().newInstance(this);
+		DFEStruct consumerLink = TcpForwardingTypes.consumerLinkType.getDFEStructType().newInstance(this);
 
-		consumerLink[types.consumerLinkType.getData()] <== inputMessage.data;
-		consumerLink[types.consumerLinkType.getSOF()] <== inputMessage.sof;
-		consumerLink[types.consumerLinkType.getEOF()] <== inputMessage.eof;
-		consumerLink[types.consumerLinkType.getMod()] <== inputMessage.mod;
-		consumerLink[UDPOneToOneTXType.SOCKET] <== decision.targetConsumer;
+		consumerLink[ConsumerLinkType.DATA] <== inputMessage.data;
+		consumerLink[ConsumerLinkType.SOF] <== inputMessage.sof;
+		consumerLink[ConsumerLinkType.EOF] <== inputMessage.eof;
+		consumerLink[ConsumerLinkType.MOD] <== inputMessage.mod;
+		consumerLink[ConsumerLinkType.SOCKET] <== decision.targetConsumer;
 
 		return consumerLink;
 	}
 
 	private DFEStruct genCpuEvent(InputMessage inputMessage, ConsumerDecision decision) {
-		DFEStruct eventToCpu = types.eventType.newInstance(this);
+		DFEStruct eventToCpu = TcpForwardingTypes.eventType.newInstance(this);
 		eventToCpu[EventsStructType.ForwardDecision] <== decision.shouldForward ?
 					constant.var((DFEType)eventToCpu[EventsStructType.ForwardDecision].getType(), 1) :
 					constant.var((DFEType)eventToCpu[EventsStructType.ForwardDecision].getType(), 0);
@@ -73,10 +70,10 @@ public class UdpForwardingKernel extends Kernel {
 		ConsumerDecision theDecision = new ConsumerDecision();
 
 		/*
-		 * Decision will be made by looking up the messageType in a ROM.
+		 * Decision will be made by lookin up the messageType in a ROM.
 		 */
 
-		Memory<DFEStruct> decisionRom = mem.alloc(types.decisionRomStructType, 256);
+		Memory<DFEStruct> decisionRom = mem.alloc(TcpForwardingTypes.decisionRomStructType, 256);
 		decisionRom.mapToCPU("decisionRom");
 		DFEStruct decision = Reductions.streamHold(decisionRom.read(inputMessage.messageType), inputMessage.isMessageStart);
 
@@ -101,15 +98,13 @@ public class UdpForwardingKernel extends Kernel {
 	}
 
 	private InputMessage processInputFeed(NonBlockingInput<DFEStruct> input) {
-
-
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
-		DFEVar data = inputStruct.get(types.inputFeedLinkType.getData());
-		DFEVar sof = inputStruct.get(types.inputFeedLinkType.getSOF());
-		DFEVar eof = inputStruct.get(types.inputFeedLinkType.getEOF());
-		DFEVar mod = inputStruct.get(types.inputFeedLinkType.getMod());
-		DFEVar socket = inputStruct.get(UDPOneToManyRXType.SOCKET);
+		DFEVar data = inputStruct.get(InputFeedLinkType.DATA);
+		DFEVar sof = inputStruct.get(InputFeedLinkType.SOF);
+		DFEVar eof = inputStruct.get(InputFeedLinkType.EOF);
+		DFEVar mod = inputStruct.get(InputFeedLinkType.MOD);
+		DFEVar socket = inputStruct.get(InputFeedLinkType.SOCKET);
 
 		/*
 		 * Start of message marker

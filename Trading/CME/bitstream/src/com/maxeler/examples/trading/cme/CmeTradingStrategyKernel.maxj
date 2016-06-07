@@ -110,10 +110,10 @@ public class CmeTradingStrategyKernel extends ThroughputFramedKernel {
 		DFEStructType responseStructType = convertFrameFormatToStructType(CmeTradingTypes.cmeTradingResponseFormat.getFrameFormat());
 		DFEStruct responseDataStruct =  responseStructType.unpack(rawResponse);
 
-		DFEVar responsePrice	= responseDataStruct[Tag.Price.toString()];
-		DFEVar responseOrderQty	= responseDataStruct[Tag.OrderQty.toString()];
-		DFEVar responseOrderID	= responseDataStruct[Tag.OrderID.toString()];
-		DFEVar responseMsgType	= responseDataStruct[Tag.MsgType.toString()];
+		DFEVar responsePrice	= (DFEVar) responseDataStruct[Tag.Price.toString()];
+		DFEVar responseOrderQty = (DFEVar) responseDataStruct[Tag.OrderQty.toString()];
+		DFEVar responseOrderID	= (DFEVar) responseDataStruct[Tag.OrderID.toString()];
+		DFEVar responseMsgType	= (DFEVar) responseDataStruct[Tag.MsgType.toString()];
 		if (is_simprintf) {
 			debug.simPrintf(
 					responseValid,
@@ -173,6 +173,7 @@ public class CmeTradingStrategyKernel extends ThroughputFramedKernel {
 							OrderBookTag.Quantity), clOrdId,
 					getFieldSizeBytes(orderCommand, Tag.Price));
 		}
+		orderCommand[Tag.SenderSubID.name()] <== constString("Send123", getFieldSizeBytes(orderCommand, Tag.SenderSubID));
 		orderCommand[Tag.Price.name()] <== Reductions.streamHold(price.valid ? price.str : constString("TooShort", getFieldSizeBytes(orderCommand, Tag.Price)), captureNewOrder);
 		orderCommand[Tag.OrderQty.name()] <== Reductions.streamHold(orderQty, captureNewOrder);
 		orderCommand[Tag.ClOrdID.name()] <== Reductions.streamHold(clOrdId, captureNewOrder);
@@ -183,11 +184,11 @@ public class CmeTradingStrategyKernel extends ThroughputFramedKernel {
 
 		assignSession(orderCommand);
 
-		DFEVar matchedOrderId = matchedOrders[CmeMdpMatchedOrdersOutputFormat.ORDER_ID];
-		DFEVar matchedOrderQty = matchedOrders[CmeMdpMatchedOrdersOutputFormat.LAST_QTY];
+		DFEVar matchedOrderId = (DFEVar) matchedOrders[CmeMdpMatchedOrdersOutputFormat.ORDER_ID];
+		DFEVar matchedOrderQty = (DFEVar) matchedOrders[CmeMdpMatchedOrdersOutputFormat.LAST_QTY];
 
-		DFEVar securityTradingStatus = securityStatuses[SecurityStatusStruct.SECURITY_TRADING_STATUS];
-		DFEVar securityGroup = securityStatuses[SecurityStatusStruct.SECURITY_GROUP];
+		DFEVar securityTradingStatus = (DFEVar) securityStatuses[SecurityStatusStruct.SECURITY_TRADING_STATUS];
+		DFEVar securityGroup = (DFEVar) securityStatuses[SecurityStatusStruct.SECURITY_GROUP];
 		securityTradingStatus = Reductions.streamHold(securityTradingStatus,SecurityStatusesValid);
 
 		/*
@@ -231,11 +232,11 @@ public class CmeTradingStrategyKernel extends ThroughputFramedKernel {
 	}
 
 	private DFEVar getOrderBookField(DFEStruct md, Side side, int level, OrderBookTag tag) {
-		return md[CmeTradingMarketDataFormat.getTagName(side, tag, level)];
+		return (DFEVar) md[CmeTradingMarketDataFormat.getTagName(side, tag, level)];
 	}
 
 	private DFEVar getMarketDataField(DFEStruct md, CmeMdpMarketDataFormat.Tag tag) {
-		return md[tag.name()];
+		return (DFEVar) md[tag.name()];
 	}
 
 	private void assignSession(FrameData<FrameFormat> orderCommand) {

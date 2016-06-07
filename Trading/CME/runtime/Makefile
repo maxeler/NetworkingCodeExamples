@@ -21,8 +21,9 @@ ifndef MAXCOMPILERDIR
     $(error "You must specify the path to the directory containing MaxCompiler in the variable MAXCOMPILERDIR.")
 endif
 
+
 ifndef MAXMPTDIR
-    $(error "You must specify the path to the directory containing MaxMPT in the variable MAXMPTDIR.")
+    $(error "You must specify the path to the directory containing MaxMPT in the variable $(MAXMPTDIR).")
 endif
 
 

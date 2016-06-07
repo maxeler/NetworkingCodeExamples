@@ -51,7 +51,7 @@ public class CmeTradingManager extends NetworkManager {
 
 		// Tell the compiler to annotate the source code with latency information
 		KernelConfiguration tradingKernelConfig = new KernelConfiguration(getCurrentKernelConfig());
-		tradingKernelConfig.debug.setEnableLatencyAnnotation(true);
+		tradingKernelConfig.debug.setEnableLatencyAnnotation(false);
 		tradingKernelConfig.debug.setEnableLongestPathAnnotation(CmeTradingStrategyKernel.INPUT_MARKET_DATA, CmeTradingStrategyKernel.OUTPUT_GEN_TRADE_CMD);
 
 		/*

@@ -1,24 +1,23 @@
-package com.maxeler.examples.udpforwarding;
+package com.maxeler.examples.tcpforwarding;
 
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.managers.BuildConfig;
 import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
-import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationTechnique;
 import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
-import com.maxeler.networking.v1.kernel_types.UDPOneToManyRXType;
-import com.maxeler.networking.v1.kernel_types.UDPOneToOneTXType;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+import com.maxeler.networking.v1.managers.netlib.TCPStream;
 import com.maxeler.networking.v1.managers.netlib.UDPChecksumMode;
 import com.maxeler.networking.v1.managers.netlib.UDPConnectionMode;
 import com.maxeler.networking.v1.managers.netlib.UDPStream;
 
 
-public class UdpForwardingManager extends NetworkManager {
+public class TcpForwardingManager extends NetworkManager {
 
-	public UdpForwardingManager(EngineParameters configuration) {
+	public TcpForwardingManager(EngineParameters configuration) {
 		super(configuration);
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
@@ -29,15 +28,10 @@ public class UdpForwardingManager extends NetworkManager {
 		UDPStream udpMulticastFeed = addUDPStream("UdpMulticastFeed", Max4NetworkConnection.QSFP_TOP_10G_PORT1,
 				UDPConnectionMode.OneToMany, UDPChecksumMode.Disabled);
 
-
 		/*
-		 * Consumer UDP streams
+		 * Consumer TCP streams
 		 */
-		UDPStream consumers = addUDPStream("Consumers", Max4NetworkConnection.QSFP_BOT_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.Disabled);
-
-		UdpForwardingTypes types = new UdpForwardingTypes(
-		    (UDPOneToManyRXType)udpMulticastFeed.getReceiveStreamType(),
-		    (UDPOneToOneTXType)consumers.getTransmitStreamType());
+		TCPStream consumers = addTCPStream("Consumers", Max4NetworkConnection.QSFP_BOT_10G_PORT1);
 
 		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
@@ -46,21 +40,21 @@ public class UdpForwardingManager extends NetworkManager {
 		/*
 		 * Main Kernel
 		 */
-		KernelBlock k = addKernel(new UdpForwardingKernel(makeKernelParameters("fwd"), types));
+		KernelBlock k = addKernel(new TcpForwardingKernel(makeKernelParameters("fwd")));
 
 
-		k.getInput(UdpForwardingKernel.INPUT) <== udpMulticastFeed.getReceiveStream();
-		consumers.getTransmitStream() <== k.getOutput(UdpForwardingKernel.OUTPUT_CONSUMERS);
-		addStreamToCPU("events") <== k.getOutput(UdpForwardingKernel.OUTPUT_EVENTS_TO_CPU);
+		k.getInput(TcpForwardingKernel.INPUT) <== udpMulticastFeed.getReceiveStream();
+		consumers.getTransmitStream() <== k.getOutput(TcpForwardingKernel.OUTPUT_CONSUMERS);
+		addStreamToCPU("events") <== k.getOutput(TcpForwardingKernel.OUTPUT_EVENTS_TO_CPU);
 	}
 
 	public static void main(String[] args) {
-		UdpForwardingParameters params = new UdpForwardingParameters(args);
-		UdpForwardingManager manager = new UdpForwardingManager(params);
+		TcpForwardingParameters params = new TcpForwardingParameters(args);
+		TcpForwardingManager manager = new TcpForwardingManager(params);
 
 		BuildConfig bc = manager.getBuildConfig();
 		bc.setBuildEffort(Effort.VERY_HIGH);
-		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setOptimizationGoal(OptimizationTechnique.SPEED);
 		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		bc.setMPPRParallelism(params.getMPPRThreads());
 		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
