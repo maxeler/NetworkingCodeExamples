@@ -1,0 +1,54 @@
+package com.maxeler.examples.tcpfastpathoffload;
+
+import com.maxeler.examples.tcpfastpathoffload.TcpFastPathOffloadTypes.TcpOffloadHeader;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.tcp.fastpath.types.MaxTcpLinkType;
+
+public class TcpFastPathOffloadTx extends Kernel {
+	public static String FROM_CPU = "cpu";
+	public static String TO_TCP = "tcp";
+
+	public TcpFastPathOffloadTx(KernelParameters params, SimpleFramedLinkType inputLinkType, MaxTcpLinkType outputLinkType) {
+		super(params);
+		flush.disabled();
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(FROM_CPU, inputLinkType.getDFEStructType(),
+				inputLinkType.getDFEStructType().getPositionForField(inputLinkType.getEOF()));
+
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar sof = inputStruct.get(inputLinkType.getSOF());
+		DFEVar eof = inputStruct.get(inputLinkType.getEOF());
+		DFEVar mod = inputStruct.get(inputLinkType.getMod());
+		DFEVar data = inputStruct.get(inputLinkType.getData());
+
+		DFEVar isStart = inputValid & sof;
+
+		DFEType socketIdType = (DFEType) outputLinkType.getDFEStructType().getTypeForField(outputLinkType.getSocketNumber());
+		DFEStruct header = Reductions.streamHold(TcpFastPathOffloadTypes.tcpOffloadHeader.unpack(data), isStart);
+		DFEVar socketId = (DFEVar) header.get(TcpOffloadHeader.SOCKET_ID).cast(socketIdType);
+
+
+
+		DFEVar outputNow = inputValid & ~sof;
+		debug.simPrintf(stream.offset(isStart, -1), "Tx frame to socket %d\n", socketId);
+
+		DFEStruct tcpOut = outputLinkType.getDFEStructType().newInstance(this);
+		tcpOut[outputLinkType.getSOF()] <== stream.offset(isStart, -1);
+		tcpOut[outputLinkType.getEOF()] <== eof;
+		tcpOut[outputLinkType.getMod()] <== mod;
+		tcpOut[outputLinkType.getSocketNumber()] <== socketId;
+		tcpOut[outputLinkType.getData()] <== data;
+
+
+		io.output(TO_TCP, outputLinkType.getDFEStructType(), outputNow) <== tcpOut;
+	}
+}

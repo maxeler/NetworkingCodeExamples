@@ -1,0 +1,62 @@
+package com.maxeler.examples.tcpfastpathoffload;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
+import com.maxeler.networking.v1.managers.NetworkManager;
+import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath.ChecksumMode;
+
+
+public class TcpFastPathOffloadManager extends NetworkManager {
+
+	public TcpFastPathOffloadManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		Max4NetworkConnection connection = Max4NetworkConnection.QSFP_TOP_10G_PORT1;
+		network_config.setEthernetMacType(EthernetMacType.ULTRA_LOW_LATENCY);
+
+		MaxTcpFastPath tcp = MaxTcpFastPath.create(this, "tcp", connection, ChecksumMode.AUTO_CALCULATED);
+
+		pushDefaultClock(getNetworkClock(connection, NetworkClocks.CLOCK_32BIT));
+
+		SimpleFramedLinkType swLinkType = new SimpleFramedLinkType(4);
+
+		/*
+		 * RX Kernel
+		 */
+		KernelBlock krx = addKernel(new TcpFastPathOffloadRx(makeKernelParameters("tcpOffloadRx"), tcp.getRxLinkType(), swLinkType));
+		krx.getInput(TcpFastPathOffloadRx.FROM_TCP) <== tcp.getRxStream();
+		addFramedStreamToCPU("rx", swLinkType) <== krx.getOutput(TcpFastPathOffloadRx.TO_CPU);
+
+		/*
+		 * TX Kernel
+		 */
+		KernelBlock ktx = addKernel(new TcpFastPathOffloadTx(makeKernelParameters("tcpOffloadTx"), swLinkType, tcp.getSimpleTxLinkType()));
+		ktx.getInput(TcpFastPathOffloadTx.FROM_CPU) <== addFramedStreamFromCPU("tx", swLinkType);
+		tcp.getTxStream() <== ktx.getOutput(TcpFastPathOffloadTx.TO_TCP);
+
+	}
+
+	public static void main(String[] args) {
+		TcpFastPathOffloadParameters params = new TcpFastPathOffloadParameters(args);
+		TcpFastPathOffloadManager manager = new TcpFastPathOffloadManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}
