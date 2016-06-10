@@ -1,29 +1,19 @@
 package com.maxeler.examples.header.insert;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import maxpower.kernel.lite.FrameIO;
-import maxpower.kernel.lite.FrameIO.FrameInput;
-import maxpower.kernel.lite.FrameIO.InterFrameGapSpec;
+import maxpower.kernel.lite.LiteIo;
 import maxpower.kernel.lite.LiteUtils;
+import maxpower.kernel.lite.utils.FrameIo.InputInterFrameGap;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+import maxpower.kernel.lite.utils.FrameIo.SerializedFrame;
 
-import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
-import com.maxeler.maxcompiler.v2.kernelcompiler.Optimization.PipelinedOps;
-import com.maxeler.maxcompiler.v2.kernelcompiler.SMIO;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
 import com.maxeler.maxcompiler.v2.managers.DFEManager;
-import com.maxeler.maxcompiler.v2.statemachine.DFEsmInput;
-import com.maxeler.maxcompiler.v2.statemachine.DFEsmOutput;
-import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateEnum;
-import com.maxeler.maxcompiler.v2.statemachine.DFEsmStateValue;
-import com.maxeler.maxcompiler.v2.statemachine.kernel.KernelStateMachine;
 import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.maxeleros.managerblocks.StructUtils;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
@@ -97,18 +87,18 @@ public class HeaderKernel extends KernelLite {
 		 */
 		int headerOverhead = getHeaderOverheadCycles();
 
-		FrameIO fio = new FrameIO(this);
-		FrameInput<DFEStruct> input = fio.frameInput(INPUT, linkType, new InterFrameGapSpec(headerOverhead));
+
+		InputInterFrameGap<DFEStruct> input = LiteIo.inputInterFrameGap(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
 
 		DFEVar dataValid = input.valid;
 		DFEVar data = (DFEVar)input.data[linkType.getData()];
 		DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
 		DFEVar sof = (DFEVar)input.data[linkType.getSOF()];
 
-		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount();
+		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount().unscheduled();
 
-		LiteUtils lutils = new LiteUtils(this);
-		DFEVar pipeStall = lutils.makeContiguousStall(INPUT, input.valid, eof);
+		DFEVar pipeStall = LiteUtils.makeContiguousStall(INPUT, input.valid, eof);
+
 		pushStall(pipeStall);
 
 		/*
@@ -127,8 +117,6 @@ public class HeaderKernel extends KernelLite {
 		 *  - - - - - - - v
 		 *
 		 */
-
-
 
 
 		DFEVar isDataStart = dataValid & sof;
@@ -156,7 +144,7 @@ public class HeaderKernel extends KernelLite {
 
 		DFEStruct theHeader = headerType.newInstance(this);
 		theHeader[HeaderType.HeaderFieldA] <== cpuInfo[CpuInfoType.CpuData2];
-		theHeader[HeaderType.HeaderFieldB] <== constant.var(dfeUInt(64), 0x123456789ABCDEFL);
+		theHeader[HeaderType.HeaderFieldB] <== constant.var(dfeUInt(64), 0x99AABBCCDDEEFFL);
 		theHeader[HeaderType.HeaderFieldC] <== constant.var(dfeUInt(48), 0xCCCCCCCCCCCCL);
 		theHeader[HeaderType.HeaderFieldD] <== cpuInfo[CpuInfoType.CpuData1];
 
@@ -167,19 +155,18 @@ public class HeaderKernel extends KernelLite {
 		debug.simPrintf(isHeaderStart, "Read from index: %d, CpuData1 = 0x%x, CpuData2 = 0x%x\n", index,
 				cpuInfo[CpuInfoType.CpuData1], cpuInfo[CpuInfoType.CpuData2]);
 
+
 		/*
-		 * We now need to take the header, and mux it over the dataBus
+		 * The header needs to be serialized over the LinkType, we use a helper function for that.
 		 */
-		SMIO controlSm = addStateMachine("controlSm", new ControlSm(this));
-		controlSm.getInput("headerStart") <== isHeaderStart;
-		DFEVar headerPartSelect = controlSm.getOutput("headerSelect");
-		DFEVar isEndOfHeader = controlSm.getOutput("headerEnd");
-		DFEVar headerValid = controlSm.getOutput("headerValid");
+		SerializedFrame serializedHeader = LiteUtils.serializeFrame("headerSerializer", theHeader.pack(), isHeaderStart, linkType);
+		DFEVar headerData = (DFEVar) serializedHeader.framedLink[linkType.getData()];
+		DFEVar headerEof = (DFEVar) serializedHeader.framedLink[linkType.getEOF()];
+
+		DFEVar isEndOfHeader = headerEof;
+		DFEVar headerValid = serializedHeader.valid;
 
 
-
-		// The header word is wider than the link width. So we need to mux it over multiple cycles.
-		DFEVar headerData = muxHeader(headerPartSelect, theHeader.pack());
 
 		// Combine the data
 		// If the alignment != 0, then when the header ends the data also starts - so we need to combine the partial words.
@@ -191,19 +178,6 @@ public class HeaderKernel extends KernelLite {
 						alignedData.slice(alignment * 8, (8-alignment)*8) # headerData.slice(0, alignment * 8) : headerData) :
 							alignedData;
 
-
-//		isHeaderStart.simWatch("isHeaderStart");
-//		isEndOfHeader.simWatch("isEndOfHeader");
-//		headerValid.simWatch("headerValid");
-//		headerPartSelect.simWatch("headerPartSelect");
-//
-//		dataValid.simWatch("dataValid");
-//		outputNow.simWatch("outputNow");
-//
-//		data.cast(dfeUInt(64)).simWatch("inputData", Radix.HEXADECIMAL);
-//		alignedData.cast(dfeUInt(64)).simWatch("alignedData", Radix.HEXADECIMAL);
-//		headerData.cast(dfeUInt(64)).simWatch("headerData", Radix.HEXADECIMAL);
-//		outputData.cast(dfeUInt(64)).simWatch("outputData", Radix.HEXADECIMAL);
 
 		// Since we're changing the data alignment, we need to correct the MOD field
 		DFEVar inputMod = (DFEVar)input.data[linkType.getMod()];
@@ -219,129 +193,21 @@ public class HeaderKernel extends KernelLite {
 		outputStruct[linkType.getEOF()] <== outputEof;
 		outputStruct[linkType.getMod()] <== outputMod;
 
-		popStall();
-
-
-//		OffsetExpr outputStallLatency = stream.measureDistance("DataPipe", data, outputData);
-//		outputStallLatency += stream.measureDistance("OutputStallSignalPipe", outputStall, input.stall);
-//		outputStallLatency += inputStallLatency;
-
-
-		// Stall Latency = PipeLineDepth(Input to Output) + InputStallLatency + StallSignalPipelineDepth(Output Stall to Input Stall)... OffsetExpr?
-
 
 		PushOutput<DFEStruct> output = io.pushOutput(OUTPUT, linkType.getDFEStructType(), 16);
+		output.data <== outputStruct;
+        output.valid <== outputNow;
+
+		debug.simPrintf(outputNow, "[%d] Output: sof=%d, eof=%d, pipeStall = %d\n", frameCycle, outputSof, outputEof, pipeStall);
+
+		popStall();
 
 		DFEVar outputStall = optimization.pipeline(output.stall);
 		input.stall <== outputStall;
 
-		output.data <== outputStruct;
-		optimization.pushPipeliningFactor(0, PipelinedOps.ALL);
-		outputNow = outputNow.withReset(false) & ~pipeStall;
-		output.valid <== outputNow;
-		optimization.popPipeliningFactor(PipelinedOps.ALL);
 
-		debug.simPrintf(outputNow, "[%d] Output: sof=%d, eof=%d, outputStall = %d, pipeStall = %d\n", frameCycle, outputSof, outputEof, outputStall, pipeStall);
 	}
 
-	private enum ControlStates {
-		WaitForStart,
-		CountUp
-	}
-
-	private class ControlSm extends KernelStateMachine {
-
-		private final DFEsmInput headerStart;
-		private final DFEsmOutput headerSelect;
-		private final DFEsmOutput headerEnd;
-		private final DFEsmOutput headerValid;
-		private final DFEsmStateValue count;
-		private final DFEsmStateValue finish;
-		private final DFEsmStateValue valid;
-		private final DFEsmStateValue select;
-		private final DFEsmStateEnum<ControlStates> currentState;
-
-		protected ControlSm(KernelBase<?> owner) {
-			super(owner);
-
-			int selectWidth = MathUtils.bitsToRepresent(getHeaderOverheadCycles());
-			headerStart = io.input("headerStart", dfeBool());
-			headerSelect = io.output("headerSelect", dfeUInt(selectWidth), 1);
-			headerEnd = io.output("headerEnd", dfeBool(), 1);
-			headerValid = io.output("headerValid", dfeBool(), 1);
-			count = state.value(dfeUInt(selectWidth), 0);
-			select = state.value(dfeUInt(selectWidth), 0);
-			valid = state.value(dfeBool(), false);
-			finish = state.value(dfeBool(), false);
-
-			currentState = state.enumerated(ControlStates.class, ControlStates.WaitForStart);
-		}
-
-		@Override
-		protected void nextState() {
-			valid.next <== false;
-			finish.next <== false;
-
-			SWITCH (currentState) {
-				CASE (ControlStates.WaitForStart) {
-					count.next <== 1;
-					select.next <== 0;
-
-					IF (headerStart) {
-						valid.next <== true;
-						currentState.next <== ControlStates.CountUp;
-					}
-				}
-
-				CASE (ControlStates.CountUp) {
-					select.next <== select + 1;
-					count.next <== count + 1;
-					valid.next <== true;
-
-					IF (count === (getHeaderOverheadCycles() - 1)) {
-						finish.next <== true;
-						currentState.next <== ControlStates.WaitForStart;
-					}
-				}
-			}
-		}
-
-		@Override
-		protected void outputFunction() {
-			headerSelect <== select;
-			headerEnd <== finish;
-			headerValid <== valid;
-		}
-	}
-
-
-	private DFEVar muxHeader(DFEVar select, DFEVar data) {
-
-		int size = getHeaderOverheadCycles();
-		int listSize = 1 << select.getType().getTotalBits();
-
-		DFEVar padded = data;
-
-		int rem = getHeaderSizeBytes() % getLinkDataWidthBytes();
-		int paddingSize = rem == 0 ? 0 : getLinkDataWidthBytes() - rem;
-		if (paddingSize != 0) {
-			padded = constant.var(dfeRawBits(paddingSize * 8), 0) # data;
-		}
-
-		List<DFEVar> words = new ArrayList<DFEVar>();
-		for (int i=0; i < size; i++)
-			words.add(getHeaderWord(padded, i));
-
-		for (int i=size; i < listSize; i++)
-			words.add(constant.var(dfeRawBits(getLinkDataWidthBytes() * 8), 0));
-
-
-		return control.mux(select, words);
-	}
-
-	private DFEVar getHeaderWord(DFEVar data, int wordIndex) {
-		return data.slice(wordIndex * getLinkDataWidthBytes() * 8, getLinkDataWidthBytes() * 8);
-	}
 
 	public DFEVar realign(final DFEVar data, final int alignment) {
 		final int remainder = 8 - alignment;

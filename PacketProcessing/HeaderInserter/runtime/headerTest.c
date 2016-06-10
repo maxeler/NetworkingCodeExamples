@@ -84,7 +84,9 @@ int main(int argc, char *argv[]) {
 	// Now, stream in some frames and see what happens.
 	size_t frameSize = sizeof(FrameFormat_t);
 
-	for (size_t i=0 ; i < 20; i++) {
+	size_t numFrames = 1;
+
+	for (size_t i=0 ; i < numFrames; i++) {
 		void *f;
 
 		while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
@@ -106,7 +108,7 @@ int main(int argc, char *argv[]) {
 		max_framed_stream_write(inFrame, 1, &frameSize);
 	}
 
-	for (size_t i=0; i < 20; i++) {
+	for (size_t i=0; i < numFrames; i++) {
 		size_t dataSize = 10 + i;
 		void *oFrame;
 		size_t oFrameSize;
