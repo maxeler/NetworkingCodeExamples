@@ -82,6 +82,7 @@ def run_sim():
 	build()
 	restart_sim()
 	subprocess.call(['./' + target])
+	stop_sim()
 
 def start_sim():
 	cmd = [maxcompilersim(), '-n', getSimName(), '-c', DFE_MODEL ] + eth_sim("TOP") + eth_sim("BOT") + ["restart"];

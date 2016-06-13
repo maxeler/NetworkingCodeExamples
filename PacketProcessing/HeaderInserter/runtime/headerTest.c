@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "MaxSLiCInterface.h"
 #include "MaxSLiCNetInterface.h"
@@ -23,8 +24,8 @@
 
 typedef struct __attribute__((packed)) {
 	uint32_t  cpuData1;
-	uint8_t   cpuData2;
-	uint32_t : 24; // padding
+	uint32_t  cpuData2 : 8;
+	uint32_t : 24;
 } CpuInfoType_t;
 
 typedef struct __attribute__((packed)) {
@@ -62,16 +63,19 @@ int main(int argc, char *argv[]) {
 	 * Fill up Rom for 16 indices
 	 */
 
+	CpuInfoType_t *cpuRom = malloc(sizeof(CpuInfoType_t) * 16);
 	max_actions_t *action = max_actions_init(maxfile, NULL);
-	for (size_t i=0; i < 16; i++) {
-		CpuInfoType_t info;
-		info.cpuData1 = 0x1000 + i;
-		info.cpuData2 = 0x22;
-		uint64_t d = *(uint64_t *)&info;
+	uint64_t d;
+	for (uint32_t i=0; i < 16; i++) {
+		CpuInfoType_t *info = &cpuRom[i];
+		memset(info, 0, sizeof(CpuInfoType_t));
+		info->cpuData1 = 0x1000 + (uint32_t)i;
+		info->cpuData2 = 0x22;
+		memcpy(&d, info, sizeof(CpuInfoType_t));
+		printf("Setting ROM index[%d] -> d1 = 0x%x d2 = 0x%x --> 0x%lx\n", i, info->cpuData1, info->cpuData2, d);
 		max_set_mem_uint64t(action, "HeaderKernel", "info", i, d);
 	}
 	max_run(engine, action);
-
 
 	size_t bufferSize = 4096 * 4096;
 	void *inBuffer = malloc(bufferSize);
@@ -81,53 +85,88 @@ int main(int argc, char *argv[]) {
 	max_framed_stream_t *inFrame = max_framed_stream_setup(engine, "inFrame", inBuffer, bufferSize, 2048-16);
 	max_framed_stream_t *outFrame = max_framed_stream_setup(engine, "outFrame", outBuffer, bufferSize, -1);
 
-	// Now, stream in some frames and see what happens.
-	size_t frameSize = sizeof(FrameFormat_t);
-
-	size_t numFrames = 1;
+	size_t numFrames = 10;
 
 	for (size_t i=0 ; i < numFrames; i++) {
 		void *f;
+		FrameFormat_t *ff;
 
-		while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
+		uint16_t index = 3;
 
-		FrameFormat_t *ff = f;
-		ff->index = 3; //i % 16;
+		{
 
-		size_t dataSize = 10 + i;
-		for (size_t s=0; s < dataSize; s++) {
-			ff->data[s] = s & 0xFF;
+			while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
+
+			ff = f;
+			ff->index = index;
+
+			size_t dataSize = 10 + i;
+			for (size_t s=0; s < dataSize; s++) {
+				ff->data[s] = s & 0xFF;
+			}
+
+			printf("Sending: index %d, data: ", ff->index);
+			for (size_t s=0; s < dataSize; s++) {
+				printf("%d ",ff->data[s]);
+			}
+			printf("\n");
+			size_t inFrameSize = sizeof(FrameFormat_t);
+			max_framed_stream_write(inFrame, 1, &inFrameSize);
 		}
 
-		printf("Sending: index %d, data: ", ff->index);
-		for (size_t s=0; s < dataSize; s++) {
-			printf("%d ",ff->data[s]);
+		{
+			size_t dataSize = 10 + i;
+			void *oFrame;
+			size_t frameSize;
+			bool fail = false;
+			while (max_framed_stream_read(outFrame, 1, &oFrame, &frameSize) != 1) usleep(100);
+
+			size_t expectedSize = sizeof(FrameFormat_t) + sizeof(HeaderType_t);
+			printf("Got frame %zd...\n", i);
+			if (frameSize != expectedSize) {
+				printf("Size mismatch. Expected %zd bytes, got %zd bytes\n", expectedSize, frameSize);
+				fail |= frameSize != expectedSize;
+			}
+
+
+			dump(oFrame, frameSize);
+
+			HeaderType_t *header = oFrame;
+			CpuInfoType_t *cpuInfo = &cpuRom[index];
+			HeaderType_t expectedHeader = {
+					.hfa = cpuInfo->cpuData2,
+					.hfb = 0xAABBCCDDEEFFUL,
+					.hfc = 0xCCCCCCCCCCCCUL,
+					.hfd = cpuInfo->cpuData1
+			};
+
+			if (memcmp(&expectedHeader, header, sizeof(HeaderType_t))) {
+				printf("Header mismatch!\n");
+				printf("Got     : a=0x%x, b=0x%lx, c=0x%lx, d=0x%x\n", header->hfa, header->hfb, (uint64_t)header->hfc, header->hfd);
+				printf("Expected: a=0x%x, b=0x%lx, c=0x%lx, d=0x%x\n", expectedHeader.hfa, expectedHeader.hfb, (uint64_t)expectedHeader.hfc, expectedHeader.hfd);
+				fail = true;
+			} else if (fail) printf("Frame data is good.\n");
+
+
+			FrameFormat_t *off = (FrameFormat_t *)(header + 1);
+			if (memcmp(ff, off, sizeof(FrameFormat_t)) != 0) {
+				printf("Frame data is different:\n");
+				printf("Rom Index: expected %d, got %d\n", ff->index, off->index);
+				for (size_t s=0; s < dataSize; s++) {
+					printf("Data[%zd]: expected 0x%x, got 0x%x\n", s, ff->data[s], off->data[s]);
+				}
+				printf("\n");
+				fail = true;
+			} else if (fail) printf("However, frame data is good.\n");
+
+
+			max_framed_stream_discard(outFrame, 1);
+
+			if (fail) {
+				printf("Failed!\n");
+				exit(1);
+			} else printf("Good.\n");
 		}
-		printf("\n");
-
-		max_framed_stream_write(inFrame, 1, &frameSize);
-	}
-
-	for (size_t i=0; i < numFrames; i++) {
-		size_t dataSize = 10 + i;
-		void *oFrame;
-		size_t oFrameSize;
-		while (max_framed_stream_read(outFrame, 1, &oFrame, &oFrameSize) != 1) usleep(100);
-
-		printf("Got frame - %zd bytes (Expecting %zd)\n", oFrameSize, frameSize + sizeof(HeaderType_t));
-
-		dump(oFrame, oFrameSize);
-
-		HeaderType_t *header = oFrame;
-		printf("Header is: a=0x%x, b=0x%lx, c=0x%lx, d=0x%x\n", header->hfa, header->hfb, (uint64_t)header->hfc, header->hfd);
-		FrameFormat_t *off = (FrameFormat_t *)(header + 1);
-		printf("Index: %d, data: ", off->index);
-		for (size_t s=0; s < dataSize; s++) {
-			printf("%d ", off->data[s]);
-		}
-		printf("\n");
-
-		max_framed_stream_discard(outFrame, 1);
 	}
 
 

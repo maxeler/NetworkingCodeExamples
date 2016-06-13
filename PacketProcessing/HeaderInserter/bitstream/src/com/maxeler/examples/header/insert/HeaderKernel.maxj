@@ -2,13 +2,12 @@ package com.maxeler.examples.header.insert;
 
 import maxpower.kernel.lite.LiteIo;
 import maxpower.kernel.lite.LiteUtils;
-import maxpower.kernel.lite.utils.FrameIo.InputInterFrameGap;
+import maxpower.kernel.lite.utils.FrameIo.InputFrame;
 import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
 import maxpower.kernel.lite.utils.FrameIo.SerializedFrame;
 
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
-import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
@@ -88,18 +87,16 @@ public class HeaderKernel extends KernelLite {
 		int headerOverhead = getHeaderOverheadCycles();
 
 
-		InputInterFrameGap<DFEStruct> input = LiteIo.inputInterFrameGap(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
-
-		DFEVar dataValid = input.valid;
-		DFEVar data = (DFEVar)input.data[linkType.getData()];
-		DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
-		DFEVar sof = (DFEVar)input.data[linkType.getSOF()];
+		InputFrame<DFEStruct> input = LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
 
 		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount().unscheduled();
 
-		DFEVar pipeStall = LiteUtils.makeContiguousStall(INPUT, input.valid, eof);
+		pushStall(input.getComputeStall());
 
-		pushStall(pipeStall);
+		DFEVar dataValid = input.valid;
+        DFEVar data = (DFEVar)input.data[linkType.getData()];
+        DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
+        DFEVar sof = (DFEVar)input.data[linkType.getSOF()];
 
 		/*
 		 * Realign data to fit nicely after header:
@@ -144,13 +141,9 @@ public class HeaderKernel extends KernelLite {
 
 		DFEStruct theHeader = headerType.newInstance(this);
 		theHeader[HeaderType.HeaderFieldA] <== cpuInfo[CpuInfoType.CpuData2];
-		theHeader[HeaderType.HeaderFieldB] <== constant.var(dfeUInt(64), 0x99AABBCCDDEEFFL);
+		theHeader[HeaderType.HeaderFieldB] <== constant.var(dfeUInt(64), 0xAABBCCDDEEFFL);
 		theHeader[HeaderType.HeaderFieldC] <== constant.var(dfeUInt(48), 0xCCCCCCCCCCCCL);
 		theHeader[HeaderType.HeaderFieldD] <== cpuInfo[CpuInfoType.CpuData1];
-
-		// Make sure the header doesn't change on the next cycle
-		// This will happen since the index will change on the next cycle.
-		theHeader = Reductions.streamHold(theHeader, isHeaderStart);
 
 		debug.simPrintf(isHeaderStart, "Read from index: %d, CpuData1 = 0x%x, CpuData2 = 0x%x\n", index,
 				cpuInfo[CpuInfoType.CpuData1], cpuInfo[CpuInfoType.CpuData2]);
@@ -198,12 +191,12 @@ public class HeaderKernel extends KernelLite {
 		output.data <== outputStruct;
         output.valid <== outputNow;
 
-		debug.simPrintf(outputNow, "[%d] Output: sof=%d, eof=%d, pipeStall = %d\n", frameCycle, outputSof, outputEof, pipeStall);
+		debug.simPrintf(outputNow, "[%d] Output: sof=%d, eof=%d, pipeStall = %d\n", frameCycle, outputSof, outputEof, input.getComputeStall());
 
 		popStall();
 
 		DFEVar outputStall = optimization.pipeline(output.stall);
-		input.stall <== outputStall;
+		input.getUserStall() <== outputStall;
 
 
 	}
