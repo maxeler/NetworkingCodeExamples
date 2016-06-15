@@ -4,7 +4,5 @@
 export APPDIR=.
 export MAXJVMMEM=6000
 export MAXAPPPKG=com.maxeler.examples.trading.cme
-export MAXAPPJCP=$MAXCOMPILERDIR/lib/MaxCompiler.jar:$MAXCOMPILERNETDIR/lib/MaxCompilerNet.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-Core.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-MarketData.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-iLink.jar:$MAXTCPFPDIR/lib/MaxTcpFastPath.jar:$APPDIR/bin
-
-export CLASSPATH=$MAXAPPJCP:$CLASSPATH
+export CLASSPATH=$APPDIR/bin:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-Core.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-MarketData.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-iLink.jar:$MAXTCPFPDIR/lib/MaxTcpFastPath.jar:$CLASSPATH
 
