@@ -1,13 +1,13 @@
 package com.maxeler.examples.trading.cme;
 
 
-import com.maxeler.maxcompiler.v2.build.ApplicationParameters;
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
-import com.maxeler.maxcompiler.v2.build.EngineParameters.Target;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
 import com.maxeler.maxcompiler.v2.managers.DFEModel;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
 
-public class CmeTradingEngineParameters extends ApplicationParameters {
+public class CmeTradingEngineParameters extends EngineParameters {
 
 	public CmeTradingEngineParameters(String[] args) {
 		super(args);
@@ -15,48 +15,43 @@ public class CmeTradingEngineParameters extends ApplicationParameters {
 
 	@Override
 	protected void declarations() {
-		 declareParam("board", DataType.DFEMODEL, DFEModel.ISCA);
-		 declareParam("target", Target.class, Target.DFE_SIM);
+		 declareParam("DFEModel", DataType.DFEMODEL, DFEModel.ISCA);
+		 declareParam("maxFileName", DataType.STRING, "CmeTrading");
 		 declareParam("hasStreamStatus", DataType.BOOL, true);
 		 declareParam("mdConnectionA", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		 declareParam("mdConnectionB", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_BOT_10G_PORT1);
 		 declareParam("orderEntryConnection", Max4NetworkConnection.class, Max4NetworkConnection.QSFP_TOP_10G_PORT1);
+		 declareParam("optimizationGoal", OptimizationGoal.class, OptimizationGoal.SPEED);
+		 declareParam("buildEffort", Effort.class, Effort.VERY_HIGH);
+		 declareParam("hasChipscope", DataType.BOOL, false);
+		 declareParam("tag", DataType.STRING, ""); // can be used to run two builds simultaneously with slightly different code
+	}
+
+	@Override
+	public String getBuildName() {
+		return super.getBuildName()
+		+ (hasChipscope() ? "_CS" : "")
+		+ getParam("tag");
 	}
 
 	public boolean isSimulation() {
 		return getTarget() == Target.DFE_SIM;
 	}
 
-	public Target getTarget() {
-		return getParam("target");
-	}
-
 	public boolean hasStreamStatus() {
 		return getParam("hasStreamStatus");
 	}
 
-
-	@Override
-	protected void deriveParameters() {
-
+	public Effort getBuildEffort() {
+		return getParam("buildEffort");
 	}
 
-	@Override
-	public String getBuildName() {
-		return "CmeTrading";
+	public OptimizationGoal getGoal() {
+		return getParam("optimizationGoal");
 	}
 
-	@Override
-	public DFEModel getDFEModel() {
-		return getParam("board");
-	}
-
-	@Override
-	protected void validate() {
-	}
-
-	public EngineParameters getEngineParams() {
-		return new EngineParameters(getBuildName(), getDFEModel(), getTarget());
+	public boolean hasChipscope() {
+		return getParam("hasChipscope");
 	}
 
 	public Max4NetworkConnection getMdConnectionA() {

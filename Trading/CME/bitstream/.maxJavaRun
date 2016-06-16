@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# This is read by maxJavaRun and sets up the various directories
+export APPDIR=.
+export MAXJVMMEM=6000
+export MAXAPPPKG=com.maxeler.examples.trading.cme
+export CLASSPATH=$APPDIR/bin:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-Core.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-MarketData.jar:$MAXMPTDIR/lib/MaxMPT-CmeGlobex-iLink.jar:$MAXTCPFPDIR/lib/MaxTcpFastPath.jar:$CLASSPATH
+
