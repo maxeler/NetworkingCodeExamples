@@ -87,16 +87,15 @@ public class HeaderKernel extends KernelLite {
 		int headerOverhead = getHeaderOverheadCycles();
 
 
+//		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount().unscheduled();
+
 		InputFrame<DFEStruct> input = LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
-
-		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount().unscheduled();
-
-		pushStall(input.getComputeStall());
 
 		DFEVar dataValid = input.valid;
         DFEVar data = (DFEVar)input.data[linkType.getData()];
         DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
         DFEVar sof = (DFEVar)input.data[linkType.getSOF()];
+        debug.simPrintf(dataValid,  "Input: data=0x%x, sof=%d, eof=%d\n", data, sof, eof);
 
 		/*
 		 * Realign data to fit nicely after header:
@@ -160,6 +159,7 @@ public class HeaderKernel extends KernelLite {
 		DFEVar headerValid = serializedHeader.valid;
 
 
+		debug.simPrintf(headerValid, "Header = 0x%x, sof=%d, eof=%d\n", headerData, isHeaderStart, headerEof);
 
 		// Combine the data
 		// If the alignment != 0, then when the header ends the data also starts - so we need to combine the partial words.
@@ -191,7 +191,7 @@ public class HeaderKernel extends KernelLite {
 		output.data <== outputStruct;
         output.valid <== outputNow;
 
-		debug.simPrintf(outputNow, "[%d] Output: sof=%d, eof=%d, pipeStall = %d\n", frameCycle, outputSof, outputEof, input.getComputeStall());
+		debug.simPrintf(outputNow, "Output: sof=%d, eof=%d, data = 0x%x\n", outputSof, outputEof, outputData);
 
 		popStall();
 
