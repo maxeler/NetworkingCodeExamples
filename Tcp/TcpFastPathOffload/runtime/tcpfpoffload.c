@@ -124,7 +124,7 @@ static void init_sockets()
 	max_ip_route_set_default_gw(engine, connection, &gw);
 	max_tcpfp = max_tcpfp_init(maxfile, engine, "tcp");
 	if(max_tcpfp == NULL) {
-		err(1, "max_fast_tcp_init failed");
+		err(1, "max_tcpfp_init failed");
 	}
 }
 
@@ -134,7 +134,7 @@ static void connect_remotes()
 	for (size_t i=0; i< num_remotes; i++) {
 		max_tcpfp_error_t e = max_tcpfp_connect(max_tcpfp, i, &remote_ips[i], get_remote_port(i));
 		if (e) {
-			err(1, "max_fast_tcp_connect returned error: %s",
+			err(1, "max_tcpfp_connect returned error: %s",
 					max_tcpfp_get_error_message(e));
 		}
 		max_tcpfp_wait_for_socket_state(max_tcpfp, i, MAX_TCPFP_SOCKET_STATE_ESTABLISHED, &timeout);

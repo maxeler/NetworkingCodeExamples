@@ -6,23 +6,27 @@ import com.maxeler.maxcompiler.v2.managers.BuildConfig;
 import com.maxeler.maxcompiler.v2.managers.custom.ManagerClock;
 import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.TimestampSource;
 import com.maxeler.mpt.cme.ilink.CmeILinkConfiguration;
 import com.maxeler.mpt.cme.ilink.CmeILinkHandler;
 import com.maxeler.mpt.cme.mdp.CmeMdpConfiguration;
 import com.maxeler.mpt.cme.mdp.CmeMdpHandler;
+import com.maxeler.mpt.core.MptConfiguration.DataWidth;
 import com.maxeler.mpt.core.internal.marketdata.MarketDataConfiguration.UdpChecksumMode;
 import com.maxeler.mpt.core.internal.marketdata.MarketDataConfiguration.UpdateOutputMode;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
-import com.maxeler.networking.v1.managers.netlib.TimestampSource;
 
 
 public class CmeTradingManager extends NetworkManager {
 	public CmeTradingManager(CmeTradingEngineParameters params) {
-		super(params.getEngineParams());
+		super(params);
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
 		pushTimestampSource(TimestampSource.HOST_CLOCK);
+
+		// Sets the mac to work in 32-bit mode.
+		network_config.setEthernetMacType(EthernetMacType.ULTRA_LOW_LATENCY);
 
 		/*
 		 * MDP3 Market Data Handler
@@ -31,6 +35,7 @@ public class CmeTradingManager extends NetworkManager {
 		mdConfig.addMarketDataOutput(CmeTradingTypes.cmeTradingMarketDataFormat);
 		mdConfig.setUpdateOutputMode(UpdateOutputMode.SECURITY_CHANGE);
 		mdConfig.setUdpChecksumMode(UdpChecksumMode.LOCK_UP);
+		mdConfig.setDataWidth(DataWidth.DataWidth32);
 
 		CmeMdpHandler mdHandler = new CmeMdpHandler(this, mdConfig);
 
@@ -41,6 +46,7 @@ public class CmeTradingManager extends NetworkManager {
 		// Tell the iLink block what is the structure of the new Order Command
 		orderEntryConfig.addOrderInput(CmeTradingTypes.cmeTradingNewOrderSingleFormat);
 		orderEntryConfig.addResponseOutput(CmeTradingTypes.cmeTradingResponseFormat);
+		orderEntryConfig.setDataWidth(DataWidth.DataWidth32);
 		CmeILinkHandler orderEntry = new CmeILinkHandler(this, orderEntryConfig);
 
 		/*
@@ -79,7 +85,9 @@ public class CmeTradingManager extends NetworkManager {
 		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
 		buildConfig.setMPPRParallelism(params.getMPPRThreads());
 		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
-		//buildConfig.setEnableChipscopeInserter(true);
+		buildConfig.setBuildEffort(params.getBuildEffort());
+		buildConfig.setOptimizationGoal(params.getGoal());
+		buildConfig.setEnableChipscopeInserter(params.hasChipscope());
 		manager.setBuildConfig(buildConfig);
 		manager.build();
 	}
