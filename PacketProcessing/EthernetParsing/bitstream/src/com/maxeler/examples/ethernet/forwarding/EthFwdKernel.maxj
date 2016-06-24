@@ -32,7 +32,7 @@ public class EthFwdKernel extends Kernel {
 		 */
 
 		DFEVar valid = input.valid;
-		DFEVar wordData = input.data[rxLinkType.getData()];
+		DFEVar wordData = (DFEVar) input.data[rxLinkType.getData()];
 		DFEVar isStart = input.valid & (DFEVar)input.data[rxLinkType.getSOF()];
 
 		FieldDesc ETHERTYPE = new FieldDesc(dfeUInt(16), 12);

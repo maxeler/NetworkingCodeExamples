@@ -14,7 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "MaxSLiCInterface.h"
+#include <MaxSLiCInterface.h>
+#include <MaxSLiCNetInterface.h>
+
+extern max_file_t *EthFwd_init();
 
 int main(int argc, char *argv[]) {
 	if (argc < 4) {
