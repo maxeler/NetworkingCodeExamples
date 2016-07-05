@@ -273,16 +273,52 @@ public class HeaderKernel extends KernelLite {
 
 		final DFEVar combined = newMsb # newLsb;
 
-		DFEVar bytesOnEof = (mod === 0) ?
-				constant.var(dfeUInt(modWidthBits + 1), 1 << modWidthBits) :
-				mod.cast(dfeUInt(modWidthBits+1));
+		/*
+		 * Short way of saying:
+		 * If mod == 0:
+		 * 	return the full word size
+		 * else:
+		 * 	return mod
+		 */
+		DFEVar bytesOnEof = ((mod === 0) # mod).cast(dfeUInt(modWidthBits+1));
 
+		/*
+		 * The actual mod needs to take the alignment in to account.
+		 */
 		DFEVar lastMod = bytesOnEof + alignment;
 
-		DFEVar needExtraCycle = (lastMod > (1<<modWidthBits)) & valid & eof;
+		/*
+		 * We've spilled over to the next cycle if there are more bytes than can fit in a single word.
+		 *
+		 * Example:
+		 *
+		 * Word size = 4 bytes
+		 * Input: XYZ, sof=1, eof=1
+		 * Header: HEADER (6 bytes)
+		 *
+		 * The output should be:
+		 *       0123
+		 * [0] = HEAD
+		 * [1] = ERXY
+		 * [2] = Zxxx
+		 *
+		 * So we had to span the input word over 2 cycles.
+		 * The needExtraCycle indicates that we need to do exactly that.
+		 */
+		DFEVar needExtraCycle = (lastMod > dataWidthBytes) & valid & eof;
+
 
 		DFEVar alignedMod = lastMod.slice(0, modWidthBits).cast(dfeUInt(modWidthBits));
+
+		/*
+		 * We extend the valid signal by another cycle at most.
+		 */
 		DFEVar alignedValid = valid | stream.offset(needExtraCycle, -1);
+
+		/*
+		 * On eof, we'll know if we need another cycle to output everything.
+		 * If we do, then EOF needs to move 1 cycle later.
+		 */
 		DFEVar alignedEof = valid & eof ? ~needExtraCycle : stream.offset(needExtraCycle, -1);
 
 		debug.simPrintf(valid&eof, "needExtraCycle = %d\n", needExtraCycle);
