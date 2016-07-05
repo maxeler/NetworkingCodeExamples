@@ -1,5 +1,10 @@
 package com.maxeler.examples.header.insert;
 
+import maxpower.kernel.frames.HeaderInserter;
+import maxpower.kernel.lite.LiteIo;
+import maxpower.kernel.lite.utils.FrameIo.InputFrame;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
@@ -10,12 +15,6 @@ import com.maxeler.maxcompiler.v2.managers.DFEManager;
 import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.maxeleros.managerblocks.StructUtils;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
-
-import maxpower.kernel.lite.LiteIo;
-import maxpower.kernel.lite.LiteUtils;
-import maxpower.kernel.lite.utils.FrameIo.InputFrame;
-import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
-import maxpower.kernel.lite.utils.FrameIo.SerializedFrame;
 
 public class HeaderKernel extends KernelLite {
 	public static final String INPUT = "frameIn";
@@ -91,40 +90,7 @@ public class HeaderKernel extends KernelLite {
 
 		InputFrame<DFEStruct> input = LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
 
-		DFEVar dataValid = input.valid;
         DFEVar data = (DFEVar)input.data[linkType.getData()];
-        DFEVar eof = (DFEVar)input.data[linkType.getEOF()];
-        DFEVar sof = (DFEVar)input.data[linkType.getSOF()];
-        DFEVar mod = (DFEVar)input.data[linkType.getMod()];
-        debug.simPrintf(dataValid,  "Input: data=0x%x, sof=%d, eof=%d\n", data, sof, eof);
-
-
-		/*
-		 * Realign data to fit nicely after header:
-		 * Original data:
-		 *  7 6 5 4 3 2 1 0
-		 *  v v v v v v v v
-		 *  - - v v v v v v
-		 *
-		 *  With header:
-		 *  7 6 5 4 3 2 1 0
-		 *  H H H H H H H H
-		 *  H H H H H H H H
-		 *  v v v v v H H H
-		 *  v v v v v v v v
-		 *  - - - - - - - v
-		 *
-		 */
-
-
-		// We realign the data
-		int alignment = getHeaderSizeBytes() % getLinkDataWidthBytes();
-		Aligned aligned = realign(dataValid, data, eof, sof, mod, alignment);
-
-		DFEVar isDataStart = dataValid & aligned.sof;
-
-		// We insert the new header 'header size' cycles ahead of the data
-		DFEVar isHeaderStart = stream.offset(isDataStart, getHeaderSizeCycles());
 
 		/*
 		 * We create a memory that will be filled up by the CPU.
@@ -145,52 +111,13 @@ public class HeaderKernel extends KernelLite {
 		theHeader[HeaderType.HeaderFieldC] <== constant.var(dfeUInt(48), 0xCCCCCCCCCCCCL);
 		theHeader[HeaderType.HeaderFieldD] <== cpuInfo[CpuInfoType.CpuData1];
 
-		debug.simPrintf(isHeaderStart, "Read from index: %d, CpuData1 = 0x%x, CpuData2 = 0x%x\n", index,
-				cpuInfo[CpuInfoType.CpuData1], cpuInfo[CpuInfoType.CpuData2]);
-
-
-		/*
-		 * The header needs to be serialized over the LinkType, we use a helper function for that.
-		 */
-		SerializedFrame serializedHeader = LiteUtils.serializeFrame("headerSerializer", theHeader.pack(), isHeaderStart, linkType);
-		DFEVar headerData = (DFEVar) serializedHeader.framedLink[linkType.getData()];
-		DFEVar headerEof = (DFEVar) serializedHeader.framedLink[linkType.getEOF()];
-
-		DFEVar isEndOfHeader = headerEof;
-		DFEVar headerValid = serializedHeader.valid;
-
-
-		debug.simPrintf(headerValid, "Header = 0x%x, sof=%d, eof=%d\n", headerData, isHeaderStart, headerEof);
-
-		// Combine the data
-		// If the alignment != 0, then when the header ends the data also starts - so we need to combine the partial words.
-		// If the alignment == 0, then the header takes up an integer number of cycles - so no need to combine partial words.
-
-		DFEVar outputNow = aligned.valid | headerValid;
-		DFEVar outputData = headerValid ?
-				(isEndOfHeader & isDataStart ?
-						aligned.data.slice(alignment * 8, (8-alignment)*8) # headerData.slice(0, alignment * 8) : headerData) :
-							aligned.data;
-
-
-		DFEVar outputMod = aligned.mod;
-		DFEVar outputSof = isHeaderStart;
-		DFEVar outputEof = aligned.eof;
-
-
-		DFEStruct outputStruct = linkType.getDFEStructType().newInstance(this);
-		outputStruct[linkType.getData()] <== outputData;
-		outputStruct[linkType.getSOF()] <== outputSof;
-		outputStruct[linkType.getEOF()] <== outputEof;
-		outputStruct[linkType.getMod()] <== outputMod;
-
+		HeaderInserter headerInserter = HeaderInserter.insertHeader(input.data, input.valid, linkType, linkType,
+				theHeader.pack());
 
 		PushOutput<DFEStruct> output = io.pushOutput(OUTPUT, linkType.getDFEStructType(),
 				input.getInputStallLatency() + 1 /* 1 for the output stall signal path */);
-		output.data <== outputStruct;
-        output.valid <== outputNow;
-
-		debug.simPrintf(outputNow, "Output: sof=%d, eof=%d, data = 0x%x\n", outputSof, outputEof, outputData);
+		output.data <== headerInserter.framedLink;
+        output.valid <== headerInserter.valid;
 
 		popStall();
 
@@ -198,138 +125,6 @@ public class HeaderKernel extends KernelLite {
 		input.getUserStall() <== outputStall;
 
 
-	}
-
-	private class Aligned {
-		public DFEVar data;
-		public DFEVar sof;
-		public DFEVar eof;
-		public DFEVar mod;
-		public DFEVar valid;
-	}
-
-	public Aligned realign(DFEVar valid, DFEVar data,
-			DFEVar eof, DFEVar sof, DFEVar mod, final int alignment) {
-
-		Aligned aligned = new Aligned();
-		final int dataWidthBytes = data.getType().getTotalBytes();
-		final int modWidthBits = mod.getType().getTotalBits();
-		final int remainder = dataWidthBytes - alignment;
-
-		/*
-		 * We're injecting a fixed amount of bytes,
-		 * So lets go through an example:
-		 *
-		 * Alignment = 3
-		 *
-		 * This means, the header finishes at byte index 2 within the word
-		 *  7 6 5 4 3 2 1 0
-		 *  H H H H H H H H
-		 *  H H H H H H H H
-		 *  - - - - - H H H
-		 *
-		 * Originally the data comes in like this:
-		 *
-		 *  7 6 5 4 3 2 1 0
-		 *  D0D0D0D0D0D0D0D0
-		 *  - - - D1D1D1D1D1
-		 *
-		 *  D0 - means a data byte that came on cycle 0
-		 *  D1 - means a data byte that came on cycle 1
-		 *
-		 *
-		 *  We need to take the data and change it to start at index 3
-		 *  7 6 5 4 3 2 1 0
-		 *  D0D0D0D0D0- - -
-		 *  D1D1D1D1D1D0D0D0
-		 *
-		 *
-		 */
-
-		// bottom bits from the current cycle become the top bits
-		final DFEVar newMsb = data.slice(0, remainder * 8);
-
-		// top bits from the previous cycle are the new bottom bits
-		final DFEVar newLsb = stream.offset(data.slice(remainder * 8, alignment * 8), -1);
-
-
-		/*
-		 * And then we combine them.
-		 *
-		 * So at cycle 0:
-		 *  7 6 5 4 3 2 1 0
-		 *  D0D0D0D0D0x x x
-		 *
-		 *  x - represents stream.offset(D0, -1), which is junk
-		 *  This is fine, because we are going to replace x with H later on.
-		 *
-		 *  At cycle 1:
-		 *  7 6 5 4 3 2 1 0
-		 *  D1D1D1D1D1D0D0D0
-		 *
-		 *  Which is good.
-		 *
-		 */
-
-		final DFEVar combined = newMsb # newLsb;
-
-		/*
-		 * Short way of saying:
-		 * If mod == 0:
-		 * 	return the full word size
-		 * else:
-		 * 	return mod
-		 */
-		DFEVar bytesOnEof = ((mod === 0) # mod).cast(dfeUInt(modWidthBits+1));
-
-		/*
-		 * The actual mod needs to take the alignment in to account.
-		 */
-		DFEVar lastMod = bytesOnEof + alignment;
-
-		/*
-		 * We've spilled over to the next cycle if there are more bytes than can fit in a single word.
-		 *
-		 * Example:
-		 *
-		 * Word size = 4 bytes
-		 * Input: XYZ, sof=1, eof=1
-		 * Header: HEADER (6 bytes)
-		 *
-		 * The output should be:
-		 *       0123
-		 * [0] = HEAD
-		 * [1] = ERXY
-		 * [2] = Zxxx
-		 *
-		 * So we had to span the input word over 2 cycles.
-		 * The needExtraCycle indicates that we need to do exactly that.
-		 */
-		DFEVar needExtraCycle = (lastMod > dataWidthBytes) & valid & eof;
-
-
-		DFEVar alignedMod = lastMod.slice(0, modWidthBits).cast(dfeUInt(modWidthBits));
-
-		/*
-		 * We extend the valid signal by another cycle at most.
-		 */
-		DFEVar alignedValid = valid | stream.offset(needExtraCycle, -1);
-
-		/*
-		 * On eof, we'll know if we need another cycle to output everything.
-		 * If we do, then EOF needs to move 1 cycle later.
-		 */
-		DFEVar alignedEof = valid & eof ? ~needExtraCycle : stream.offset(needExtraCycle, -1);
-
-		debug.simPrintf(valid&eof, "needExtraCycle = %d\n", needExtraCycle);
-
-
-		aligned.data = combined.cast(data.getType());
-		aligned.mod = alignedMod;
-		aligned.valid = alignedValid;
-		aligned.sof = sof;
-		aligned.eof = alignedEof;
-		return aligned;
 	}
 
 	public static void main(String args[]) {
