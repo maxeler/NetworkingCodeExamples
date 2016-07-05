@@ -39,13 +39,20 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
 	uint16_t index;
+} FrameHeader_t;
+
+typedef struct __attribute__((packed)) {
+	FrameHeader_t header;
 	uint8_t data[ARRAY_SIZE];
 } FrameFormat_t;
 
+static size_t div_by_8_round_up(size_t size) {
+	return ((size + 7) & ~7) >> 3;
+}
 
 void dump(void *v, size_t size) {
 	uint64_t *b = v;
-	size_t sizeWords = ((size + 7) & ~7) >> 3;
+	size_t sizeWords = div_by_8_round_up(size);
 	for (size_t i=0; i < sizeWords; i++) {
 		printf("[%zd] 0x%lx\n", i, b[i]);
 	}
@@ -100,19 +107,23 @@ int main(int argc, char *argv[]) {
 			while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
 
 			ff = f;
-			ff->index = index;
+			ff->header.index = index;
 
 			size_t dataSize = i;
 			for (size_t s=0; s < dataSize; s++) {
 				ff->data[s] = s & 0xFF;
 			}
 
-			printf("Sending: index %d, data: ", ff->index);
+			printf("Index %d, data: ", ff->header.index);
 			for (size_t s=0; s < dataSize; s++) {
 				printf("%d ",ff->data[s]);
 			}
 			printf("\n");
-			size_t inFrameSize = 2 + dataSize;
+
+			size_t inFrameSize = sizeof(FrameHeader_t) + dataSize;
+			printf("----------------\nSending frame - %zd bytes\n", inFrameSize);
+			dump(f, inFrameSize);
+			printf("----------------\n");
 			max_framed_stream_write(inFrame, 1, &inFrameSize);
 		}
 
@@ -155,7 +166,7 @@ int main(int argc, char *argv[]) {
 			FrameFormat_t *off = (FrameFormat_t *)(header + 1);
 			if (memcmp(ff, off, 2 + dataSize) != 0) {
 				printf("Frame data is different:\n");
-				printf("Rom Index: expected %d, got %d\n", ff->index, off->index);
+				printf("Rom Index: expected %d, got %d\n", ff->header.index, off->header.index);
 				for (size_t s=0; s < dataSize; s++) {
 					printf("Data[%zd]: expected 0x%x, got 0x%x\n", s, ff->data[s], off->data[s]);
 				}
