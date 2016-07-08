@@ -35,16 +35,25 @@ typedef struct __attribute__((packed)) {
 	uint32_t  hfd;
 } HeaderType_t;
 
+#define ARRAY_SIZE 32
 
 typedef struct __attribute__((packed)) {
 	uint16_t index;
-	uint8_t data[32];
+} FrameHeader_t;
+
+typedef struct __attribute__((packed)) {
+	FrameHeader_t header;
+	uint8_t data[ARRAY_SIZE];
 } FrameFormat_t;
 
+static size_t div_by_8_round_up(size_t size) {
+	return ((size + 7) & ~7) >> 3;
+}
 
 void dump(void *v, size_t size) {
 	uint64_t *b = v;
-	for (size_t i=0; i < (size / sizeof(uint64_t)); i++) {
+	size_t sizeWords = div_by_8_round_up(size);
+	for (size_t i=0; i < sizeWords; i++) {
 		printf("[%zd] 0x%lx\n", i, b[i]);
 	}
 }
@@ -85,9 +94,9 @@ int main(int argc, char *argv[]) {
 	max_framed_stream_t *inFrame = max_framed_stream_setup(engine, "inFrame", inBuffer, bufferSize, 2048-16);
 	max_framed_stream_t *outFrame = max_framed_stream_setup(engine, "outFrame", outBuffer, bufferSize, -1);
 
-	size_t numFrames = 10;
+	size_t numFrames = ARRAY_SIZE;
 
-	for (size_t i=0 ; i < numFrames; i++) {
+	for (size_t i=0 ; i <= numFrames; i++) {
 		void *f;
 		FrameFormat_t *ff;
 
@@ -98,34 +107,40 @@ int main(int argc, char *argv[]) {
 			while (max_framed_stream_write_acquire(inFrame, 1, &f) != 1) usleep(10);
 
 			ff = f;
-			ff->index = index;
+			ff->header.index = index;
 
-			size_t dataSize = 10 + i;
+			size_t dataSize = i;
 			for (size_t s=0; s < dataSize; s++) {
 				ff->data[s] = s & 0xFF;
 			}
 
-			printf("Sending: index %d, data: ", ff->index);
+			printf("Index %d, data: ", ff->header.index);
 			for (size_t s=0; s < dataSize; s++) {
 				printf("%d ",ff->data[s]);
 			}
 			printf("\n");
-			size_t inFrameSize = sizeof(FrameFormat_t);
+
+			size_t inFrameSize = sizeof(FrameHeader_t) + dataSize;
+			printf("----------------\nSending frame - %zd bytes\n", inFrameSize);
+			dump(f, inFrameSize);
+			printf("----------------\n");
 			max_framed_stream_write(inFrame, 1, &inFrameSize);
 		}
 
 		{
-			size_t dataSize = 10 + i;
+			size_t dataSize = i;
 			void *oFrame;
 			size_t frameSize;
 			bool fail = false;
 			while (max_framed_stream_read(outFrame, 1, &oFrame, &frameSize) != 1) usleep(100);
 
-			size_t expectedSize = sizeof(FrameFormat_t) + sizeof(HeaderType_t);
+			size_t expectedSize = sizeof(HeaderType_t) + sizeof(FrameHeader_t) + dataSize;
 			printf("Got frame %zd...\n", i);
 			if (frameSize != expectedSize) {
 				printf("Size mismatch. Expected %zd bytes, got %zd bytes\n", expectedSize, frameSize);
-				fail |= frameSize != expectedSize;
+				fail = true;
+			} else {
+				printf("Size = %zd bytes\n", frameSize);
 			}
 
 
@@ -145,13 +160,13 @@ int main(int argc, char *argv[]) {
 				printf("Got     : a=0x%x, b=0x%lx, c=0x%lx, d=0x%x\n", header->hfa, header->hfb, (uint64_t)header->hfc, header->hfd);
 				printf("Expected: a=0x%x, b=0x%lx, c=0x%lx, d=0x%x\n", expectedHeader.hfa, expectedHeader.hfb, (uint64_t)expectedHeader.hfc, expectedHeader.hfd);
 				fail = true;
-			} else if (fail) printf("Frame data is good.\n");
+			} else if (fail) printf("Header data is good.\n");
 
 
 			FrameFormat_t *off = (FrameFormat_t *)(header + 1);
-			if (memcmp(ff, off, sizeof(FrameFormat_t)) != 0) {
+			if (memcmp(ff, off, sizeof(FrameHeader_t) + dataSize) != 0) {
 				printf("Frame data is different:\n");
-				printf("Rom Index: expected %d, got %d\n", ff->index, off->index);
+				printf("Rom Index: expected %d, got %d\n", ff->header.index, off->header.index);
 				for (size_t s=0; s < dataSize; s++) {
 					printf("Data[%zd]: expected 0x%x, got 0x%x\n", s, ff->data[s], off->data[s]);
 				}
