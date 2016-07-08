@@ -1,10 +1,5 @@
 package com.maxeler.examples.header.insert;
 
-import maxpower.kernel.frames.HeaderInserter;
-import maxpower.kernel.lite.LiteIo;
-import maxpower.kernel.lite.utils.FrameIo.InputFrame;
-import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
-
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
@@ -16,6 +11,11 @@ import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.maxeleros.managerblocks.StructUtils;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
 
+import maxpower.kernel.frames.HeaderInserter;
+import maxpower.kernel.lite.LiteIo;
+import maxpower.kernel.lite.utils.FrameIo.InputFrame;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+
 public class HeaderKernel extends KernelLite {
 	public static final String INPUT = "frameIn";
 	public static final String OUTPUT = "frameOut";
@@ -25,18 +25,19 @@ public class HeaderKernel extends KernelLite {
 	 * The structure of the header we want to insert
 	 */
 	public static HeaderType headerType = new HeaderType();
+
 	public static class HeaderType extends DFEStructType {
 		public static String HeaderFieldA = "hfa";
 		public static String HeaderFieldB = "hfb";
 		public static String HeaderFieldC = "hfc";
 		public static String HeaderFieldD = "hfd";
+
 		public HeaderType() {
 			super(
 					sft(HeaderFieldA, dfeUInt(8)),
 					sft(HeaderFieldB, dfeUInt(64)),
-					sft(HeaderFieldC, dfeUInt(48)),
-					sft(HeaderFieldD, dfeUInt(32))
-				);
+			        sft(HeaderFieldC, dfeUInt(48)),
+			        sft(HeaderFieldD, dfeUInt(32)));
 		}
 	}
 
@@ -44,14 +45,13 @@ public class HeaderKernel extends KernelLite {
 	 * The structure of the CPU information we need
 	 */
 	public static CpuInfoType cpuInfoType = new CpuInfoType();
+
 	public static class CpuInfoType extends DFEStructType {
 		public static String CpuData1 = "cpuData1";
 		public static String CpuData2 = "cpuData2";
+
 		public CpuInfoType() {
-			super(
-					sft(CpuData1, dfeUInt(32)),
-					sft(CpuData2, dfeUInt(8))
-				);
+			super(sft(CpuData1, dfeUInt(32)), sft(CpuData2, dfeUInt(8)));
 		}
 	}
 
@@ -86,11 +86,10 @@ public class HeaderKernel extends KernelLite {
 		int headerOverhead = getHeaderOverheadCycles();
 
 
-//		DFEVar frameCycle = control.count.makeCounter(control.count.makeParams(32)).getCount().unscheduled();
+		InputFrame<DFEStruct> input =
+		        LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
 
-		InputFrame<DFEStruct> input = LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
-
-        DFEVar data = (DFEVar)input.data[linkType.getData()];
+		DFEVar data = (DFEVar) input.data[linkType.getData()];
 
 		/*
 		 * We create a memory that will be filled up by the CPU.
@@ -111,20 +110,18 @@ public class HeaderKernel extends KernelLite {
 		theHeader[HeaderType.HeaderFieldC] <== constant.var(dfeUInt(48), 0xCCCCCCCCCCCCL);
 		theHeader[HeaderType.HeaderFieldD] <== cpuInfo[CpuInfoType.CpuData1];
 
-		HeaderInserter headerInserter = HeaderInserter.insertHeader(input.data, input.valid, linkType, linkType,
-				theHeader.pack());
+		HeaderInserter headerInserter = HeaderInserter.insertHeader(input.data, input.valid,
+		        linkType, linkType, theHeader.pack());
 
 		PushOutput<DFEStruct> output = io.pushOutput(OUTPUT, linkType.getDFEStructType(),
-				input.getInputStallLatency() + 1 /* 1 for the output stall signal path */);
+		        input.getInputStallLatency() + 1 /* 1 for the output stall signal path */);
 		output.data <== headerInserter.framedLink;
-        output.valid <== headerInserter.valid;
+		output.valid <== headerInserter.valid;
 
 		popStall();
 
 		DFEVar outputStall = optimization.pipeline(output.stall);
 		input.getUserStall() <== outputStall;
-
-
 	}
 
 	public static void main(String args[]) {
