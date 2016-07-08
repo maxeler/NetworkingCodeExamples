@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
 			bool fail = false;
 			while (max_framed_stream_read(outFrame, 1, &oFrame, &frameSize) != 1) usleep(100);
 
-			size_t expectedSize = sizeof(HeaderType_t) + 2 + dataSize;
+			size_t expectedSize = sizeof(HeaderType_t) + sizeof(FrameHeader_t) + dataSize;
 			printf("Got frame %zd...\n", i);
 			if (frameSize != expectedSize) {
 				printf("Size mismatch. Expected %zd bytes, got %zd bytes\n", expectedSize, frameSize);
@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
 
 
 			FrameFormat_t *off = (FrameFormat_t *)(header + 1);
-			if (memcmp(ff, off, 2 + dataSize) != 0) {
+			if (memcmp(ff, off, sizeof(FrameHeader_t) + dataSize) != 0) {
 				printf("Frame data is different:\n");
 				printf("Rom Index: expected %d, got %d\n", ff->header.index, off->header.index);
 				for (size_t s=0; s < dataSize; s++) {
