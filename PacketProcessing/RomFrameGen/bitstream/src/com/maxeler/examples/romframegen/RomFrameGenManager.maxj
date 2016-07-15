@@ -1,0 +1,38 @@
+package com.maxeler.examples.romframegen;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class RomFrameGenManager extends NetworkManager {
+
+	public RomFrameGenManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		KernelBlock k = addKernel(new RomFrameGenKernel(this));
+		k.getInput(RomFrameGenKernel.INPUT) <== addFramedStreamFromCPU("src", RomFrameGenTypes.someLinkType);
+		addFramedStreamToCPU("dst", RomFrameGenTypes.someLinkType) <== k.getOutput(RomFrameGenKernel.OUTPUT);
+	}
+
+	public static void main(String[] args) {
+		RomFrameGenParameters params = new RomFrameGenParameters(args);
+		RomFrameGenManager manager = new RomFrameGenManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}
