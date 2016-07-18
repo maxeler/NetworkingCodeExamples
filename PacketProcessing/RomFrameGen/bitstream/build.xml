@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="bitstreams">
+	<property environment="env"/>
+	<property name="ECLIPSE_HOME" value="${env.MAXCOMPILERDIR}/lib/MaxIDE"/>
+	<property name="debuglevel" value="source,lines,vars"/>
+	<property name="target" value="1.7"/>
+	<property name="source" value="1.7"/>
+
+
+	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
+
+	<property name="maxeda"   value="${env.MAXCOMPILERJCP}"/>
+	<property name="maxnet"   value="${env.MAXCOMPILERNETJCP}"/>
+	<property name="maxpowernet"   value="${env.MAXPOWERNETDIR}/bin"/>
+	<path id="bitstreams.local.classpath">
+		<pathelement location="bin"/>
+		<pathelement location="${maxeda}"/>
+		<pathelement location="${maxnet}"/>
+		<pathelement location="${maxpowernet}"/>
+	</path>
+
+	<target name="init">
+		<mkdir dir="bin"/>
+		<copy includeemptydirs="false" todir="bin">
+			<fileset dir="src">
+				<exclude name="**/*.launch"/>
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.maxj"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="clean">
+		<delete dir="bin"/>
+	</target>
+
+
+	<target depends="clean" name="cleanall"/>
+	<target depends="build-subprojects,build-project" name="build"/>
+	<target name="build-subprojects"/>
+	<target depends="init" name="build-project">
+		<echo message="${ant.project.name}: ${ant.file}"/>
+		<maxjcompiler debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+			<src path="src"/>
+			<classpath refid="bitstreams.local.classpath"/>
+		</maxjcompiler>
+	</target>
+	
+	<target name="RomFrameGen">
+		<java classname="com.maxeler.examples.romframegen.RomFrameGenManager" failonerror="true" fork="yes">
+			<arg line="target=DFE_SIM" />
+			<classpath refid="bitstreams.local.classpath"/>
+		</java>
+	</target>
+</project>

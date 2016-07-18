@@ -1,0 +1,142 @@
+package com.maxeler.examples.romframegen;
+
+import com.maxeler.examples.romframegen.RomFrameGenTypes.FrameGenMetadata;
+import com.maxeler.examples.romframegen.RomFrameGenTypes.SomeLinkType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+import maxpower.kernel.frames.FrameControl;
+import maxpower.kernel.frames.FrameControl.FrameCounter;
+
+/*
+ * ROM based Frame Generation
+ *
+ * Based on an input frame, we're going to generate a new frame
+ * with contents comes from a CPU populated mapped ROM.
+ *
+ */
+public class RomFrameGenKernel extends KernelLite {
+	public static String INPUT = "inputFrame";
+	public static String OUTPUT = "outputFrame";
+
+	public RomFrameGenKernel(NetworkManager owner) {
+		super(owner, "RomFrameGenKernel");
+
+		SomeLinkType linkType = RomFrameGenTypes.someLinkType;
+		DFEStruct outputLink = linkType.newInstance(this);
+
+		PushInput<DFEStruct> input = io.pushInput(INPUT, linkType, 6);
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
+		DFEVar data = inputStruct.get(linkType.getData());
+
+
+		DFEVar isStart = inputValid & sof;
+
+		/*
+		 * We're going to address the metadata based on the message type.
+		 * So we need to specify how many different message types we've got.
+		 */
+		int numMessageTypes = 20;
+		int numMessageTypesWidth = MathUtils.bitsToAddress(numMessageTypes);
+		int metadataRomDepth = MathUtils.nextPowerOfTwo(numMessageTypes);
+		int metadataRomAddressWidth = MathUtils.bitsToAddress(metadataRomDepth);
+
+		/*
+		 * The Frame ROM is partitioned out to ranges.
+		 * Each section of this ROM will be dedicated to a specific message type.
+		 */
+		int maxMessageSizeWords = 128;
+		int frameRomDepth = maxMessageSizeWords * numMessageTypes;
+		int frameRomAddressWidth = MathUtils.bitsToAddress(frameRomDepth);
+
+		/*
+		 * The first byte of the data is the message type.
+		 * We'll use that to determine which frame to generate.
+		 */
+		DFEVar inputMessageType = Reductions.streamHold(castToInt(data, numMessageTypesWidth), isStart);
+		debug.simPrintf(isStart, "Got input message type: %d\n", inputMessageType);
+
+
+		/*
+		 * Metadata ROM - contains information about the frame we want to generate.
+		 * We look up the correct metadata using the messageType.
+		 */
+
+		Memory<DFEStruct> metadataRom = mem.alloc(RomFrameGenTypes.frameGenMetadata, metadataRomDepth);
+		metadataRom.mapToCPU("metadataRom");
+		DFEStruct metadata = metadataRom.read(castToInt(inputMessageType, metadataRomAddressWidth));
+
+		/*
+		 * The start and end indices represent the section of the frame-rom that we're interested in.
+		 */
+		DFEVar startIndex = castToInt((DFEVar) metadata[FrameGenMetadata.START_INDEX], frameRomAddressWidth);
+		DFEVar endIndex = castToInt((DFEVar) metadata[FrameGenMetadata.END_INDEX], frameRomAddressWidth);
+		DFEVar frameMod = castToType((DFEVar) metadata[FrameGenMetadata.FRAME_MOD], (DFEType) outputLink[linkType.getMod()].getType());
+
+		debug.simPrintf(isStart, "Got: start=%d, end=%d, mod=%d\n", startIndex, endIndex, frameMod);
+
+		/*
+		 * Create a counter with the range startIndex ... endIndex (inclusive)
+		 */
+		FrameCounter counter = FrameControl.count(isStart, startIndex, endIndex);
+		debug.simPrintf(counter.valid, "Counter: %d, start=%d, end=%d\n", counter.value, counter.start, counter.end);
+
+
+		/*
+		 * The actual data we want to send out is located inside the frame ROM
+		 * The data type is the same as the input data field.
+		 */
+		Memory<DFEVar> frameRom = mem.alloc(data.getType(), frameRomDepth);
+		frameRom.mapToCPU("frameRom");
+		DFEVar outputData = frameRom.read(counter.value);
+
+		DFEVar zeroMod = constant.var((DFEType)outputLink[linkType.getMod()].getType(), 0);
+
+		outputLink[linkType.getSOF()] <== counter.start;
+		outputLink[linkType.getEOF()] <== counter.end;
+		outputLink[linkType.getMod()] <== counter.end ?	frameMod : zeroMod;
+		outputLink[linkType.getData()] <== outputData;
+
+
+		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, 16);
+
+		pushOut.data <== outputLink;
+		pushOut.valid <== counter.valid;
+
+		input.stall <== optimization.pipeline(pushOut.stall);
+	}
+
+	/*
+	 * If v is wider than width, slice it
+	 * If v is narrower than width, pad it
+	 * otherwise, pass it as is
+	 *
+	 */
+	private DFEVar matchSize(DFEVar v, int width) {
+		int vwidth = v.getType().getTotalBits();
+		if (vwidth < width)
+			return (constant.var(dfeRawBits(width - vwidth), 0) # v);
+		else if (vwidth > width)
+			return v.slice(0, width);
+
+		return v.cast(dfeRawBits(width));
+	}
+
+	private DFEVar castToType(DFEVar v, DFEType t) {
+		return matchSize(v, t.getTotalBits()).cast(t);
+	}
+	private DFEVar castToInt(DFEVar v, int width) {
+		return matchSize(v, width).cast(dfeUInt(width));
+	}
+}
