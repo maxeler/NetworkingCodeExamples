@@ -31,23 +31,21 @@ public class RomFrameGenKernel extends KernelLite {
 		super(owner, "RomFrameGenKernel");
 
 		SomeLinkType linkType = RomFrameGenTypes.someLinkType;
+		DFEStruct outputLink = linkType.newInstance(this);
 
 		PushInput<DFEStruct> input = io.pushInput(INPUT, linkType, 6);
 
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
 		DFEVar sof = (DFEVar)inputStruct.get(linkType.getSOF());
-		DFEVar eof = (DFEVar)inputStruct.get(linkType.getEOF());
 		DFEVar data = inputStruct.get(linkType.getData());
 
-
-		debug.simPrintf(inputValid, "Got data: 0x%x, sof=%d, eof=%d\n", data, sof, eof);
 
 		DFEVar isStart = inputValid & sof;
 
 		/*
 		 * We're going to address the metadata based on the message type.
-		 * So we need to specify how many message type's we've got.
+		 * So we need to specify how many different message types we've got.
 		 */
 		int numMessageTypes = 20;
 		int numMessageTypesWidth = MathUtils.bitsToAddress(numMessageTypes);
@@ -58,7 +56,8 @@ public class RomFrameGenKernel extends KernelLite {
 		 * The Frame ROM is partitioned out to ranges.
 		 * Each section of this ROM will be dedicated to a specific message type.
 		 */
-		int frameRomDepth = 1024;
+		int maxMessageSizeWords = 128;
+		int frameRomDepth = maxMessageSizeWords * numMessageTypes;
 		int frameRomAddressWidth = MathUtils.bitsToAddress(frameRomDepth);
 
 		/*
@@ -66,6 +65,7 @@ public class RomFrameGenKernel extends KernelLite {
 		 * We'll use that to determine which frame to generate.
 		 */
 		DFEVar inputMessageType = Reductions.streamHold(castToInt(data, numMessageTypesWidth), isStart);
+		debug.simPrintf(isStart, "Got input message type: %d\n", inputMessageType);
 
 
 		/*
@@ -82,12 +82,15 @@ public class RomFrameGenKernel extends KernelLite {
 		 */
 		DFEVar startIndex = castToInt((DFEVar) metadata[FrameGenMetadata.START_INDEX], frameRomAddressWidth);
 		DFEVar endIndex = castToInt((DFEVar) metadata[FrameGenMetadata.END_INDEX], frameRomAddressWidth);
+		DFEVar frameMod = castToType((DFEVar) metadata[FrameGenMetadata.FRAME_MOD], (DFEType) outputLink[linkType.getMod()].getType());
 
+		debug.simPrintf(isStart, "Got: start=%d, end=%d, mod=%d\n", startIndex, endIndex, frameMod);
 
 		/*
 		 * Create a counter with the range startIndex ... endIndex (inclusive)
 		 */
 		FrameCounter counter = FrameControl.count(isStart, startIndex, endIndex);
+		debug.simPrintf(counter.valid, "Counter: %d, start=%d, end=%d\n", counter.value, counter.start, counter.end);
 
 
 		/*
@@ -98,11 +101,12 @@ public class RomFrameGenKernel extends KernelLite {
 		frameRom.mapToCPU("frameRom");
 		DFEVar outputData = frameRom.read(counter.value);
 
-		DFEStruct outputLink = linkType.newInstance(this);
+		DFEVar zeroMod = constant.var((DFEType)outputLink[linkType.getMod()].getType(), 0);
+
 		outputLink[linkType.getSOF()] <== counter.start;
 		outputLink[linkType.getEOF()] <== counter.end;
+		outputLink[linkType.getMod()] <== counter.end ?	frameMod : zeroMod;
 		outputLink[linkType.getData()] <== outputData;
-		outputLink[linkType.getMod()] <== constant.var((DFEType)outputLink[linkType.getMod()].getType(), 0);
 
 
 		PushOutput<DFEStruct> pushOut = io.pushOutput(OUTPUT, linkType, 16);
@@ -119,13 +123,20 @@ public class RomFrameGenKernel extends KernelLite {
 	 * otherwise, pass it as is
 	 *
 	 */
-	private DFEVar castToInt(DFEVar v, int width) {
+	private DFEVar matchSize(DFEVar v, int width) {
 		int vwidth = v.getType().getTotalBits();
 		if (vwidth < width)
-			return (constant.var(dfeRawBits(width - vwidth), 0) # v).cast(dfeUInt(width));
+			return (constant.var(dfeRawBits(width - vwidth), 0) # v);
 		else if (vwidth > width)
-			return v.slice(0, width).cast(dfeUInt(width));
+			return v.slice(0, width);
 
-		return v.cast(dfeUInt(width));
+		return v.cast(dfeRawBits(width));
+	}
+
+	private DFEVar castToType(DFEVar v, DFEType t) {
+		return matchSize(v, t.getTotalBits()).cast(t);
+	}
+	private DFEVar castToInt(DFEVar v, int width) {
+		return matchSize(v, width).cast(dfeUInt(width));
 	}
 }

@@ -14,10 +14,10 @@ public class RomFrameGenTypes {
 
 		public SomeLinkType() {
 			super(
-					sft(DATA, DFETypeFactory.dfeUInt(64)),
+					sft(DATA, DFETypeFactory.dfeUInt(32)),
 					sft(SOF, DFETypeFactory.dfeBool()),
 					sft(EOF, DFETypeFactory.dfeBool()),
-					sft(MOD, DFETypeFactory.dfeUInt(3))
+					sft(MOD, DFETypeFactory.dfeUInt(2))
 					);
 		}
 
@@ -35,10 +35,12 @@ public class RomFrameGenTypes {
 	public static class FrameGenMetadata extends DFEStructType {
 		public static final String START_INDEX = "startIndex";
 		public static final String END_INDEX = "endIndex";
+		public static final String FRAME_MOD = "frameMod";
 		public FrameGenMetadata() {
 			super(
 					sft(START_INDEX, DFETypeFactory.dfeUInt(16)),
-					sft(END_INDEX, DFETypeFactory.dfeUInt(16))
+					sft(END_INDEX, DFETypeFactory.dfeUInt(16)),
+					sft(FRAME_MOD, DFETypeFactory.dfeUInt(8))
 			);
 		}
 	}

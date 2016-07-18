@@ -49,7 +49,7 @@ def run_sim():
 	s.start()
 	e.execCommand([ "./" + target ])
 	e.wait()
-#	s.stop()
+	s.stop()
 	
 
 def maxdebug():
