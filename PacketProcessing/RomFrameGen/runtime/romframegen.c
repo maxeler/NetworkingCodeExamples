@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
 	max_framed_stream_t* dst = max_framed_stream_setup(engine, "dst", dst_buffer, buffer_size, -1);
 
 
-	size_t num_frames = 10;
+	size_t num_frames = 1000;
 	for (size_t i=0; i < num_frames; i++) {
 
 		void *src_frame = NULL;
