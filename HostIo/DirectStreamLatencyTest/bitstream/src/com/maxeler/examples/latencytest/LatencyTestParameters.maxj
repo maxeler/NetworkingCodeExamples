@@ -1,0 +1,23 @@
+package com.maxeler.examples.latencytest;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+
+public class LatencyTestParameters extends EngineParameters {
+
+	public LatencyTestParameters(String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		declareParam(s_parameterDFE, DFEModel.class, DFEModel.ISCA);
+		declareParam(s_parameterMaxFileName, DataType.STRING, "LatencyTest");
+		declareParam(s_parameterTarget, Target.class, Target.DFE);
+	}
+
+//	@Override
+//	public String getBuildName() {
+//		return getMaxFileName() + "_" + getTarget() + "_ss" + getHasStreamStatus() + "_sf" + getStreamFrequency();
+//	}
+}

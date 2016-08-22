@@ -1,0 +1,41 @@
+package com.maxeler.examples.latencytest;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class LatencyTestManager extends NetworkManager {
+
+	public LatencyTestManager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		config.setDefaultStreamClockFrequency(250);
+
+		/*
+		 * Simple PCIe Loopback
+		 */
+		addStreamToCPU("dst") <== addStreamFromCPU("src", StreamMode.DIRECT);
+
+	}
+
+	public static void main(String[] args) {
+		LatencyTestParameters params = new LatencyTestParameters(args);
+		LatencyTestManager manager = new LatencyTestManager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+
+}
