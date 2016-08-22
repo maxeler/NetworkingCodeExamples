@@ -8,9 +8,9 @@ import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
 import com.maxeler.networking.v1.managers.NetworkManager;
 
 
-public class LatencyTestManager extends NetworkManager {
+public class DirectLatencyTestManager extends NetworkManager {
 
-	public LatencyTestManager(EngineParameters configuration) {
+	public DirectLatencyTestManager(EngineParameters configuration) {
 		super(configuration);
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
@@ -25,8 +25,8 @@ public class LatencyTestManager extends NetworkManager {
 	}
 
 	public static void main(String[] args) {
-		LatencyTestParameters params = new LatencyTestParameters(args);
-		LatencyTestManager manager = new LatencyTestManager(params);
+		DirectLatencyTestParameters params = new DirectLatencyTestParameters(args);
+		DirectLatencyTestManager manager = new DirectLatencyTestManager(params);
 
 		BuildConfig bc = manager.getBuildConfig();
 		bc.setBuildEffort(Effort.VERY_HIGH);

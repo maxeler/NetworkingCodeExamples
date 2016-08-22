@@ -9,9 +9,9 @@ except ImportError, e:
 	print "Couldn't find project-utils modules."
 	sys.exit(1)
 
-MAXFILES = ['LatencyTest.max']
-sources = ['latencytest.c']
-target = 'latencytest'
+MAXFILES = ['DirectLatencyTest.max']
+sources = ['directlatencytest.c']
+target = 'directlatencytest'
 includes = []
 my_cflags = []
 my_ldflags = []

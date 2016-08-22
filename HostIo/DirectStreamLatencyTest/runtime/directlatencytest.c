@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 	 * Setup up low latency streams
 	 */
 
-	const size_t slot_size_bytes = 512;
+	const size_t slot_size_bytes = 16;
 	const size_t num_slots = 512;
 	void *src_buffer, *dst_buffer;
 	posix_memalign(&src_buffer, PAGE_SIZE, slot_size_bytes);

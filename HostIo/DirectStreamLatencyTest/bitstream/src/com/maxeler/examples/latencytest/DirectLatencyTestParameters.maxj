@@ -3,16 +3,16 @@ package com.maxeler.examples.latencytest;
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.managers.DFEModel;
 
-public class LatencyTestParameters extends EngineParameters {
+public class DirectLatencyTestParameters extends EngineParameters {
 
-	public LatencyTestParameters(String[] args) {
+	public DirectLatencyTestParameters(String[] args) {
 		super(args);
 	}
 
 	@Override
 	protected void declarations() {
 		declareParam(s_parameterDFE, DFEModel.class, DFEModel.ISCA);
-		declareParam(s_parameterMaxFileName, DataType.STRING, "LatencyTest");
+		declareParam(s_parameterMaxFileName, DataType.STRING, "DirectLatencyTest");
 		declareParam(s_parameterTarget, Target.class, Target.DFE);
 	}
 
