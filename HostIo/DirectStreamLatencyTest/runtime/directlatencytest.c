@@ -10,7 +10,7 @@
 #include "MaxSLiCInterface.h"
 #define PAGE_SIZE 4096
 
-extern max_file_t *LatencyTest_init();
+extern max_file_t *DirectLatencyTest_init();
 
 #define MS_PER_SEC 1000.0
 #define US_PER_SEC 1000000.0
@@ -52,7 +52,7 @@ static void calc_cpufreq() {
 
 int main(int argc, char *argv[]) {
 
-	max_file_t *maxfile = LatencyTest_init();
+	max_file_t *maxfile = DirectLatencyTest_init();
 	max_engine_t * engine = max_load(maxfile, "*");
 
 	calc_cpufreq();
