@@ -1,0 +1,19 @@
+package com.maxeler.examples.udplogging;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+public class Types {
+	public static SummaryType summaryType = new SummaryType();
+	public static class SummaryType extends DFEStructType {
+		public static String FRAME_ID = "frameId";
+		public static String FRAME_SIZE_BYTES = "frameSizeBytes";
+		public SummaryType() {
+			super(
+					sft(FRAME_ID, DFETypeFactory.dfeUInt(64)),
+					sft(FRAME_SIZE_BYTES, DFETypeFactory.dfeUInt(32)),
+					sft("padding", DFETypeFactory.dfeUInt(32))
+					);
+		}
+	}
+}

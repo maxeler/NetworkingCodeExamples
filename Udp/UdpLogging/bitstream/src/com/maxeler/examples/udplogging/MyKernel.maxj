@@ -1,0 +1,62 @@
+package com.maxeler.examples.udplogging;
+
+import com.maxeler.examples.udplogging.Types.SummaryType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+
+public class MyKernel extends Kernel {
+	public static String INPUT = "inputFrame";
+	public static String OUTPUT = "outputSummary";
+
+	public MyKernel(KernelParameters kernelParameters, FramedLinkType inputType) {
+		super(kernelParameters);
+		flush.disabled();
+
+
+		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
+				inputType.getDFEStructType(),
+				inputType.getDFEStructType().getPositionForField(inputType.getEOF()));
+
+		DFEStruct inputStruct = input.data;
+		DFEVar inputValid = input.valid;
+
+		DFEVar sof = (DFEVar)inputStruct.get(inputType.getSOF());
+		DFEVar eof = (DFEVar)inputStruct.get(inputType.getEOF());
+		DFEVar mod = (DFEVar)inputStruct.get(inputType.getMod());
+		DFEVar data = inputStruct.get(inputType.getData());
+
+		DFEVar isFrameStart = inputValid & sof;
+		DFEVar isFrameEnd = inputValid & eof;
+
+		DFEVar frameId = Reductions.streamHold(control.count.makeCounter(
+				control.count.makeParams(64)
+					.withEnable(isFrameStart)
+					.withInitValue(1)).getCount(), isFrameStart);
+
+		int wordSizeBytes = data.getType().getTotalBytes();
+
+		DFEVar frameSizeWords = control.count.makeCounter(
+				control.count.makeParams(32)
+					.withEnable(inputValid)
+					.withReset(isFrameStart)
+					.withInitValue(1)).getCount();
+
+
+		DFEVar bytesOnEof = mod === 0 ? constant.var(frameSizeWords.getType(), wordSizeBytes) : mod.cast(frameSizeWords.getType());
+		DFEVar frameSizeBytes = frameSizeWords * wordSizeBytes + bytesOnEof;
+
+
+		debug.simPrintf(isFrameEnd, "Got %d packet - length %d [bytes]\n", frameId, frameSizeBytes);
+		DFEStruct summary = Types.summaryType.newInstance(this);
+		summary[SummaryType.FRAME_ID] <== frameId;
+		summary[SummaryType.FRAME_SIZE_BYTES] <== frameSizeBytes;
+		summary["padding"] <== constant.var(dfeUInt(32), 0);
+
+		io.output(OUTPUT, Types.summaryType, isFrameEnd) <== summary;
+	}
+}
