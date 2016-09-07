@@ -85,5 +85,6 @@ static void init_multicast_feed(max_engine_t * engine)
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
 	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
 	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
+	max_ip_multicast_join_group(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &multicast_ip);
 }
 
