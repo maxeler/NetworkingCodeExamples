@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
 
 	max_file_t *maxfile = HeaderInserter_init();
 	max_engine_t * engine = max_load(maxfile, "*");
+	max_reset_engine(engine);
 
 	printf("FrameFormat_t size = %zd, HeaderType_t size = %zd\n", sizeof(FrameFormat_t), sizeof(HeaderType_t));
 
@@ -87,10 +88,10 @@ int main(int argc, char *argv[]) {
 	max_run(engine, action);
 
 	size_t bufferSize = 4096 * 4096;
-	void *inBuffer = malloc(bufferSize);
-	void *outBuffer = malloc(bufferSize);
-//	posix_memalign(&inBuffer, 4096, bufferSize);
-//	posix_memalign(&outBuffer, 4096, bufferSize);
+	void *inBuffer;
+	void *outBuffer;
+	posix_memalign(&inBuffer, 4096, bufferSize);
+	posix_memalign(&outBuffer, 4096, bufferSize);
 	max_framed_stream_t *inFrame = max_framed_stream_setup(engine, "inFrame", inBuffer, bufferSize, 2048-16);
 	max_framed_stream_t *outFrame = max_framed_stream_setup(engine, "outFrame", outBuffer, bufferSize, -1);
 
@@ -166,9 +167,13 @@ int main(int argc, char *argv[]) {
 			FrameFormat_t *off = (FrameFormat_t *)(header + 1);
 			if (memcmp(ff, off, sizeof(FrameHeader_t) + dataSize) != 0) {
 				printf("Frame data is different:\n");
-				printf("Rom Index: expected %d, got %d\n", ff->header.index, off->header.index);
+				if(ff->header.index != off->header.index) {
+					printf("Rom Index: expected %d, got %d\n", ff->header.index, off->header.index);
+				}
 				for (size_t s=0; s < dataSize; s++) {
-					printf("Data[%zd]: expected 0x%x, got 0x%x\n", s, ff->data[s], off->data[s]);
+					if(ff->data[s] != off->data[s]) {
+						printf("Data[%zd]: expected 0x%x, got 0x%x\n", s, ff->data[s], off->data[s]);
+					}
 				}
 				printf("\n");
 				fail = true;
