@@ -1,5 +1,10 @@
 package com.maxeler.examples.header.insert;
 
+import maxpower.kernel.frames.HeaderInserter;
+import maxpower.kernel.lite.LiteIo;
+import maxpower.kernel.lite.utils.FrameIo.InputFrame;
+import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
+
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
@@ -10,11 +15,6 @@ import com.maxeler.maxcompiler.v2.managers.DFEManager;
 import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.maxeleros.managerblocks.StructUtils;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
-
-import maxpower.kernel.frames.HeaderInserter;
-import maxpower.kernel.lite.LiteIo;
-import maxpower.kernel.lite.utils.FrameIo.InputFrame;
-import maxpower.kernel.lite.utils.FrameIo.InterFrameGapSpec;
 
 public class HeaderKernel extends KernelLite {
 	public static final String INPUT = "frameIn";
@@ -87,7 +87,7 @@ public class HeaderKernel extends KernelLite {
 
 
 		InputFrame<DFEStruct> input =
-		        LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead));
+		        LiteIo.inputFrame(this, INPUT, linkType, new InterFrameGapSpec(headerOverhead), false);
 
 		DFEVar data = (DFEVar) input.data[linkType.getData()];
 
@@ -117,8 +117,6 @@ public class HeaderKernel extends KernelLite {
 		        input.getInputStallLatency() + 1 /* 1 for the output stall signal path */);
 		output.data <== headerInserter.framedLink;
 		output.valid <== headerInserter.valid;
-
-		popStall();
 
 		DFEVar outputStall = optimization.pipeline(output.stall);
 		input.getUserStall() <== outputStall;
