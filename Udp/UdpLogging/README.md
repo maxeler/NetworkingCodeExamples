@@ -1,7 +1,6 @@
-# My Project Title
+# UDP Logging Example 
 
-This is a generic project template. My Project does: X, Y, Z.
-
+This example simply takes in a UDP Multicast feed, counts the number of input frames and measures the input packet size and sends that information to software.
 
 ## How to build
 
@@ -31,5 +30,11 @@ cp <maxfile> .
 ```bash
 cd runtime
 ./build.py run_sim
+```
+
+then in a different terminal:
+```bash
+./build_multicast.py
+./run_multicast.sh
 ```
 
