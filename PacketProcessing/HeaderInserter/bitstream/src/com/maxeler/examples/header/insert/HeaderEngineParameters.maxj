@@ -6,7 +6,9 @@ import com.maxeler.maxcompiler.v2.managers.DFEModel;
 public class HeaderEngineParameters extends EngineParameters {
 
 	public HeaderEngineParameters(String[] args) {
-		super(args);
+		super(args, "MPPRStartCT=5"
+				, "MPPREndCT=8"
+				, "MPPRThreads=4");
 	}
 
 	@Override
