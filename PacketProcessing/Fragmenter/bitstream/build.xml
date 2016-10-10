@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="Fragmenter">
+	<property environment="env"/>
+	<property name="debuglevel" value="source,lines,vars"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/> 
+	<property name="build.sysclasspath" value="last"/>
+
+	<fail unless="env.MAXCOMPILERDIR" message="MAXCOMPILERDIR not set to a MaxCompiler distribution"/>
+	<fail unless="env.MAXCOMPILERNETDIR" message="MAXCOMPILERNETDIR not set to a MaxCompilerNet distribution"/>
+	<fail unless="env.MAXPOWERDIR" message="MAXPOWERDIR not set to a MaxPower distribution"/>
+	<fail unless="env.MAXPOWERNETDIR" message="MAXPOWERNETDIR not set to a MaxPowerNet distribution"/>
+
+	<property name="maxeda"	value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>
+	<property name="maxnet"	value="${env.MAXCOMPILERNETDIR}/lib/MaxCompilerNet.jar"/>
+	<property name="maxpower" value="${env.MAXPOWERDIR}/bin"/>
+	<property name="maxpowernet"   value="${env.MAXPOWERNETDIR}/bin"/>
+
+	<path id="bitstreams.classpath">
+		<pathelement location="bin"/>
+		<pathelement location="${maxeda}"/>
+		<pathelement location="${maxnet}"/>
+		<pathelement location="${maxpower}"/>
+		<pathelement location="${maxpowernet}"/>
+	</path>
+
+	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
+	<target name="init">
+		<mkdir dir="bin"/>
+		<copy includeemptydirs="false" todir="bin">
+			<fileset dir="src">
+				<exclude name="**/*.launch"/>
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.maxj"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="clean">
+		<delete dir="bin"/>
+	</target>
+
+	<target depends="clean" name="cleanall"/>
+	<target depends="build-project" name="build"/>
+
+	<target depends="init" name="build-project">
+		<echo message="${ant.project.name}: ${ant.file}"/>
+		<pathconvert property="classpathProp" refid="bitstreams.classpath"/>
+		<echo>Project classpath: ${classpathProp}</echo>
+		<echo>System classpath: ${java.class.path}</echo>
+		<maxjcompiler debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+			<src path="src"/>
+			<classpath refid="bitstreams.classpath"/>
+		</maxjcompiler>
+	</target>
+	
+	<target name="sim" depends="build">
+		<java classname="com.maxeler.examples.fragmenter.Manager" failonerror="true" fork="yes">
+			<arg line="target=DFE_SIM" />
+			<classpath refid="bitstreams.classpath"/>
+		</java>
+	</target>
+
+	
+	<target name="dfe" depends="build">
+		<java classname="com.maxeler.examples.fragmenter.Manager" failonerror="true" fork="yes">
+			<arg line="target=DFE" />
+			<classpath refid="bitstreams.classpath"/>
+		</java>
+	</target>
+</project>

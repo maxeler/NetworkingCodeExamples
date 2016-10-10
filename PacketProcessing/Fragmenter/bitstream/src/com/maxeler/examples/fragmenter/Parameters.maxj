@@ -1,0 +1,23 @@
+package com.maxeler.examples.fragmenter;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.DFEModel;
+
+public class Parameters extends EngineParameters {
+
+	public Parameters(String[] args) {
+		super(args);
+	}
+
+	@Override
+	protected void declarations() {
+		declareParam(s_parameterDFE, DFEModel.class, DFEModel.ISCA);
+		declareParam(s_parameterMaxFileName, DataType.STRING, "Fragmenter");
+		declareParam(s_parameterTarget, Target.class, Target.DFE_SIM);
+	}
+
+//	@Override
+//	public String getBuildName() {
+//		return getMaxFileName() + "_" + getTarget() + "_ss" + getHasStreamStatus() + "_sf" + getStreamFrequency();
+//	}
+}

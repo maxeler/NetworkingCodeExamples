@@ -1,0 +1,40 @@
+package com.maxeler.examples.fragmenter;
+
+import maxpower.network.frame.Fragmenter;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig.OptimizationGoal;
+import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+
+public class Manager extends NetworkManager {
+
+	public Manager(EngineParameters configuration) {
+		super(configuration);
+
+		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(true));
+
+		addFramedStreamToCPU("dst", Types.someLinkType) <==
+				Fragmenter.fragmentFrames(this,
+						Types.someLinkType,
+						Fragmenter.MAX_FRAME_SIZE_FROM_SCALAR,
+						addFramedStreamFromCPU("src", Types.someLinkType));
+	}
+
+	public static void main(String[] args) {
+		Parameters params = new Parameters(args);
+		Manager manager = new Manager(params);
+
+		BuildConfig bc = manager.getBuildConfig();
+		bc.setBuildEffort(Effort.VERY_HIGH);
+		bc.setOptimizationGoal(OptimizationGoal.SPEED);
+		bc.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		bc.setMPPRParallelism(params.getMPPRThreads());
+		bc.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+		manager.build();
+	}
+}
