@@ -2,6 +2,8 @@
 
 This example takes a stream of frames and fragments each frame in to multiple smaller parts. 
 
+It uses the fragmenter component from MaxPower. It configures it to take the Maximum Fragment size from a Scalar Input.
+
 
 ## How to build
 
