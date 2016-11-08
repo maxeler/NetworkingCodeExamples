@@ -11,11 +11,13 @@
 	<property name="maxeda"   value="${env.MAXCOMPILERJCP}"/>
 	<property name="maxnet"   value="${env.MAXCOMPILERNETJCP}"/>
 	<property name="maxtcpfp"   value="${env.MAXTCPFPDIR}/lib/MaxTcpFastPath.jar"/>
+	<property name="maxpowernet" value="${env.MAXPOWERNETDIR}/bin"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
 		<pathelement location="${maxnet}"/>
 		<pathelement location="${maxtcpfp}"/>
+		<pathelement location="${maxpowernet}"/>
 	</path>
 
 	<target name="init">

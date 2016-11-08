@@ -109,7 +109,7 @@ static void echo_loop()
 			max_tcpfp_socket_state_t state;
 			max_tcpfp_get_socket_state(max_tcpfp, i, &state);
 			if (state != MAX_TCPFP_SOCKET_STATE_ESTABLISHED) {
-				printf("Socket %zd is not longer established, terminating.", i);
+				printf("Socket %zd is not longer established, terminating.\n", i);
 				return;
 			}
 		}
