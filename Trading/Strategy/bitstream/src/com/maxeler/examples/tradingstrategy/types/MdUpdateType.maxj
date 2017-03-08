@@ -1,0 +1,37 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+
+public class MdUpdateType extends DFEStructType {
+
+	public static final String TIMESTAMP = "timestamp";
+	public static final String ORDER_BOOK = "orderBook";
+	public static final String TRADE_UPDATE = "tradeUpdate";
+	public static final String SECURITY_ID = "securityId";
+	public static final String TRADE_VALID = "tradeValid";
+	public static final String BOOK_VALID = "bookValid";
+
+	public static final MdUpdateType type = new MdUpdateType();
+
+
+
+	public MdUpdateType() {
+		super(
+				sft(TIMESTAMP, DFETypeFactory.dfeUInt(64)), // Nanoseconds since epoch
+				sft(SECURITY_ID, Types.secIdType),
+				sft(TRADE_UPDATE, TradeUpdateType.getType()),
+				sft(ORDER_BOOK, OrderBookType.getType()),
+				sft(TRADE_VALID, DFETypeFactory.dfeBool()),
+				sft(BOOK_VALID, DFETypeFactory.dfeBool()),
+				sft("padding", DFETypeFactory.dfeRawBits(30 + 112 * 8)) // Next power of 2
+		);
+	}
+
+
+	public static void main(String [] args) {
+		StructUtils.printDFEStructType(type);
+	}
+
+}

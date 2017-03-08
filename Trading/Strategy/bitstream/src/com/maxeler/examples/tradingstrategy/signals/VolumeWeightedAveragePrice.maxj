@@ -1,0 +1,64 @@
+package com.maxeler.examples.tradingstrategy.signals;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.examples.tradingstrategy.types.TradeUpdateType;
+import com.maxeler.examples.tradingstrategy.types.Types;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelComponent;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+
+public class VolumeWeightedAveragePrice extends KernelComponent {
+
+	public static void compute(KernelBase<?> owner,
+			Signals signals, DFEVar secSelect,
+			DFEStruct tradeUpdate, DFEVar valid) {
+		new VolumeWeightedAveragePrice(owner, signals, secSelect, tradeUpdate, valid);
+	}
+
+	private VolumeWeightedAveragePrice(KernelBase<?> owner,
+			Signals signals, DFEVar secSelect, DFEStruct tradeUpdate, DFEVar valid) {
+		super(owner);
+
+
+		DFEVar tradePrice = ((DFEVar)tradeUpdate[TradeUpdateType.TRADE_PRICE]).cast(Types.hpComputeType);
+		DFEVar tradeQty = ((DFEVar)tradeUpdate[TradeUpdateType.TRADE_QTY]).cast(Types.hpComputeType);
+
+
+		DFEVar tradeValue = tradePrice * tradeQty;
+
+		List<DFEVar> valids = new ArrayList<>();
+		List<DFEVar> totalQtys = new ArrayList<>();
+		List<DFEVar> totalValues = new ArrayList<>();
+
+		for (int i = 0; i < signals.secIds.size(); i++) {
+			DFEVar secValid = secSelect.slice(i) & valid;
+			valids.add(secValid);
+
+			totalQtys.add(Reductions.accumulator.makeAccumulator(tradeQty,
+    				Reductions.accumulator.makeAccumulatorConfig(Types.hpComputeType)
+    					.withEnable(secValid)));
+
+    		totalValues.add(Reductions.accumulator.makeAccumulator(tradeValue,
+    				Reductions.accumulator.makeAccumulatorConfig(Types.hpComputeType)
+    				.withEnable(secValid)));
+		}
+
+		/*
+		 * Only one security can update at a time, so we only need to have 1 division.
+		 * Mux the accumulators based on the current security.
+		 */
+
+		DFEVar totalQty = control.oneHotMux(secSelect, totalQtys);
+		DFEVar totalValue = control.oneHotMux(secSelect, totalValues);
+
+		DFEVar vwap = (totalValue / totalQty).cast(Types.computeType);
+
+		for (int i=0; i < signals.secIds.size(); i++) {
+			signals.vwap.add(Reductions.streamHold(vwap, valids[i]));
+		}
+    }
+}

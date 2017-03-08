@@ -1,0 +1,52 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+public class OrderBookType extends DFEStructType {
+
+	public static final String LEVEL5 = "level5";
+	public static final String LEVEL4 = "level4";
+	public static final String LEVEL3 = "level3";
+	public static final String LEVEL2 = "level2";
+	public static final String LEVEL1 = "level1";
+
+	public static final OrderBookType getType() {
+		return new OrderBookType();
+	}
+
+	public OrderBookType() {
+		super(
+				sft(LEVEL1, BookLevelType.getType()),
+				sft(LEVEL2, BookLevelType.getType()),
+				sft(LEVEL3, BookLevelType.getType()),
+				sft(LEVEL4, BookLevelType.getType()),
+				sft(LEVEL5, BookLevelType.getType())
+			);
+	}
+
+	public static class BookLevelType extends DFEStructType {
+
+		public static final BookLevelType getType() {
+			return new BookLevelType();
+		}
+
+		public static final String SELL_NUMBER_OF_ORDERS = "sellNumberOfOrders";
+		public static final String SELL_QTY = "sellQty";
+		public static final String SELL_PRICE = "sellPrice";
+		public static final String BUY_NUMBER_OF_ORDERS = "buyNumberOfOrders";
+		public static final String BUY_QTY = "buyQty";
+		public static final String BUY_PRICE = "buyPrice";
+
+		public BookLevelType() {
+			super(
+					sft(BUY_PRICE, Types.priceType),
+					sft(BUY_QTY, Types.qtyType),
+					sft(BUY_NUMBER_OF_ORDERS, DFETypeFactory.dfeUInt(32)),
+					sft(SELL_PRICE, Types.priceType),
+					sft(SELL_QTY, Types.qtyType),
+					sft(SELL_NUMBER_OF_ORDERS, DFETypeFactory.dfeUInt(32))
+				);
+		}
+	}
+}

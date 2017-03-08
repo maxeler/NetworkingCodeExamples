@@ -1,0 +1,62 @@
+package com.maxeler.examples.tradingstrategy.signals;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.examples.tradingstrategy.types.TradeUpdateType;
+import com.maxeler.examples.tradingstrategy.types.Types;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelComponent;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.KernelMath;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+
+public class Liveness extends KernelComponent {
+
+	public static void compute(KernelBase<?> owner,
+			Signals signals, DFEVar secSelect,
+			DFEVar livenessC,
+			DFEStruct tradeUpdate, DFEVar valid, DFEVar timeNow) {
+
+		new Liveness(owner, signals, secSelect, livenessC, tradeUpdate, valid, timeNow);
+	}
+
+
+	public Liveness(KernelBase<?> owner,
+			Signals signals, DFEVar secSelect, DFEVar livenessC, DFEStruct tradeUpdate, DFEVar valid, DFEVar timeNow) {
+		super(owner);
+
+		List<DFEVar> valids = new ArrayList<>();
+
+		List<DFEVar> tradeQtys = new ArrayList<>();
+		List<DFEVar> lastTradeTimes = new ArrayList<>();
+		List<DFEVar> maxTradeQtys = new ArrayList<>();
+
+		for (int i = 0; i < signals.secIds.size(); i++) {
+			DFEVar secValid = secSelect.slice(i) & valid;
+			valids.add(secValid);
+			DFEVar tradeQty = Reductions.streamHold((DFEVar)tradeUpdate[TradeUpdateType.TRADE_QTY], secValid).cast(Types.computeType);
+			tradeQtys.add(tradeQty);
+			lastTradeTimes.add(Reductions.streamHold(timeNow, secValid));
+			maxTradeQtys.add(Reductions.streamMax(tradeQty, constant.var(false), secValid));
+		}
+
+
+		DFEVar tradeQty = control.oneHotMux(secSelect, tradeQtys);
+		DFEVar lastTradeTime = control.oneHotMux(secSelect, lastTradeTimes);
+		DFEVar maxTradeQty = control.oneHotMux(secSelect, maxTradeQtys);
+
+		DFEVar ratio = tradeQty / maxTradeQty;
+
+
+		DFEVar timeSinceLastTrade = (timeNow - lastTradeTime).cast(Types.computeType);
+
+		DFEVar exponent = -livenessC * timeSinceLastTrade;
+		DFEVar liveness = ratio * KernelMath.exp(exponent);
+
+		for (int i = 0; i < signals.secIds.size(); i++) {
+			signals.liveness.add(Reductions.streamHold(liveness, valids[i]));
+		}
+    }
+}

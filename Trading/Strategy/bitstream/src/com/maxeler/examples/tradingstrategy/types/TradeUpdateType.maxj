@@ -1,0 +1,20 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+public class TradeUpdateType extends DFEStructType {
+
+	public static final String TRADE_QTY = "tradeQty";
+	public static final String TRADE_PRICE = "tradePrice";
+
+	public final static TradeUpdateType getType() {
+		return new TradeUpdateType();
+	}
+
+	public TradeUpdateType() {
+		super(
+				sft(TRADE_PRICE,Types.priceType),
+				sft(TRADE_QTY,Types.qtyType)
+		);
+	}
+}

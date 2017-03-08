@@ -1,0 +1,17 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEFix.SignMode;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+
+public class Types {
+	public static final DFEType priceType = DFETypeFactory.dfeInt(32);
+	public static final DFEType qtyType = DFETypeFactory.dfeUInt(32);
+	public static final DFEType secIdType = DFETypeFactory.dfeUInt(32);
+
+	public static final DFEType computeType = DFETypeFactory.dfeFix(32, 16, SignMode.TWOSCOMPLEMENT);
+	public static final DFEType hpComputeType = DFETypeFactory.dfeFix(64, 16, SignMode.TWOSCOMPLEMENT);
+
+	public static final DFEType standardDouble = DFETypeFactory.dfeFloat(11, 53);
+
+}

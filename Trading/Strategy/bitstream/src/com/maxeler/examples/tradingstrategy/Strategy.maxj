@@ -1,0 +1,193 @@
+package com.maxeler.examples.tradingstrategy;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import maxpower.kernel.KernelBinaryOp;
+import maxpower.utils.TreeReduce;
+
+import com.maxeler.examples.tradingstrategy.signals.Signals;
+import com.maxeler.examples.tradingstrategy.types.MdUpdateType;
+import com.maxeler.examples.tradingstrategy.types.OrderBookType;
+import com.maxeler.examples.tradingstrategy.types.OrderBookType.BookLevelType;
+import com.maxeler.examples.tradingstrategy.types.OrderEntryType;
+import com.maxeler.examples.tradingstrategy.types.Side;
+import com.maxeler.examples.tradingstrategy.types.StatusType;
+import com.maxeler.examples.tradingstrategy.types.TradeUpdateType;
+import com.maxeler.examples.tradingstrategy.types.Types;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite.IO.PushOutput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.networking.v1.managers.NetworkManager;
+
+public class Strategy extends KernelLite {
+	public static final String INPUT = "marketUpdates";
+	public static final String OUTPUT = "orderEntry";
+	public static final String OUTPUT_STATUS = "status";
+
+	public Strategy(NetworkManager owner) {
+		super(owner, "StrategyKernel");
+
+		PushInput<DFEStruct> inputMarketUpdate = io.pushInput(INPUT, MdUpdateType.type, 8);
+
+		DFEVar updateValid = inputMarketUpdate.valid;
+		DFEStruct update = inputMarketUpdate.data;
+
+		DFEVar timestamp = update[MdUpdateType.TIMESTAMP];
+
+		int numSecurities = 4;
+		List<DFEVar> securities = new ArrayList<>();
+
+		for (int s=0; s < numSecurities; s++) {
+			securities.add(io.scalarInput("secId" + s, Types.secIdType));
+		}
+
+		DFEVar secSelect = secIdToSecSelect(securities, (DFEVar)update[MdUpdateType.SECURITY_ID]);
+		DFEVar secValid = updateValid & orReduce(secSelect);
+
+		DFEVar updateNum = control.count.makeCounter(
+					control.count.makeParams(32)
+						.withEnable(updateValid)
+					).getCount();
+
+		debug.simPrintf(inputMarketUpdate.valid & (DFEVar)update[MdUpdateType.BOOK_VALID],
+				"[%d] Processing book update for security [%d] -> Bid %d, %d Offer\n",
+				updateNum,
+				update[MdUpdateType.SECURITY_ID],
+				((DFEStruct)((DFEStruct)update[MdUpdateType.ORDER_BOOK])[OrderBookType.LEVEL1])[BookLevelType.BUY_PRICE],
+				((DFEStruct)((DFEStruct)update[MdUpdateType.ORDER_BOOK])[OrderBookType.LEVEL1])[BookLevelType.SELL_PRICE]);
+
+		debug.simPrintf(inputMarketUpdate.valid & (DFEVar)update[MdUpdateType.TRADE_VALID],
+				"[%d] Processing trade update for security [%d] -> %d @ %d\n",
+				updateNum,
+				update[MdUpdateType.SECURITY_ID],
+				((DFEStruct)update[MdUpdateType.TRADE_UPDATE])[TradeUpdateType.TRADE_QTY],
+				((DFEStruct)update[MdUpdateType.TRADE_UPDATE])[TradeUpdateType.TRADE_PRICE]);
+
+
+		List<DFEStruct> orders = new ArrayList<>();
+		List<DFEVar> sendOrders = new ArrayList<>();
+
+		for (Side side : Side.values()) {
+    		Signals signals = Signals.compute(this, securities, side, secSelect, update, updateValid, timestamp, updateNum);
+
+
+    		DFEVar cEma = io.scalarInput("cEma" + side.name(), Types.computeType);
+    		DFEVar cVwap = io.scalarInput("cVwap" + side.name(), Types.computeType);
+    		DFEVar cLiveness = io.scalarInput("cLiveness" + side.name(), Types.computeType);
+
+    		DFEVar executeThreshold = io.scalarInput("executeThreshold" + side.name(), Types.computeType);
+
+    		DFEVar ema = control.oneHotMux(secSelect, signals.ema);
+    		DFEVar vwap = control.oneHotMux(secSelect, signals.vwap);
+    		DFEVar liveness = control.oneHotMux(secSelect, signals.liveness);
+
+    		DFEVar bestPrice = signals.getPrice(side).cast(Types.computeType);
+
+    		DFEVar emaFactor = bestPrice / ema;
+    		DFEVar vwapFactor = bestPrice / vwap;
+
+   			DFEVar execute = cEma * emaFactor + cVwap * vwapFactor + cLiveness * liveness;
+//   			if (side == Side.BUY) {
+//   				debug.simPrintf(secValid, "emaFactor=%f, vwapFactor=%f, liveness=%f --> execute = %f\n",
+//   						emaFactor, vwapFactor, liveness, execute);
+//   			}
+   			DFEVar sendOrder = execute >= executeThreshold;
+   			DFEVar secId = control.oneHotMux(secSelect, securities);
+   			DFEVar shouldBuy = bestPrice < vwap;
+   			DFEVar orderSide = shouldBuy ? Side.BUY.getConstant(this) : Side.SELL.getConstant(this);
+
+   			DFEVar bestBuyPrice = signals.getPrice(Side.BUY);
+    		DFEVar bestSellPrice = signals.getPrice(Side.SELL);
+
+   			DFEStruct order = OrderEntryType.getType().newInstance(this);
+   			order[OrderEntryType.PRICE] = shouldBuy ? bestSellPrice : bestBuyPrice;
+   			order[OrderEntryType.SECURITY_ID] = secId;
+   			order[OrderEntryType.QTY] = constant.var(Types.qtyType, 1); // 1 lot
+   			order[OrderEntryType.SIDE] = orderSide;
+   			order[OrderEntryType.PADDING] = constant.var((DFEType)order[OrderEntryType.PADDING].getType(), 0);
+
+   			if (side == Side.BUY) {
+       			DFEStruct status = StatusType.getType().newInstance(this);
+       			status[StatusType.SECURITY_ID] = secId;
+       			status[StatusType.BEST_PRICE] = bestPrice.cast(Types.standardDouble);
+       			status[StatusType.EMA] = ema.cast(Types.standardDouble);
+       			status[StatusType.VWAP] = vwap.cast(Types.standardDouble);
+       			status[StatusType.LIVENESS] = liveness.cast(Types.standardDouble);
+       			status[StatusType.EMA_FACTOR] = emaFactor.cast(Types.standardDouble);
+       			status[StatusType.VWAP_FACTOR] = vwapFactor.cast(Types.standardDouble);
+       			status[StatusType.EXECUTE] = execute.cast(Types.standardDouble);
+       			status[StatusType.SIDE] = side.getConstant(this);
+       			status[StatusType.ID] = updateNum.cast((DFEType)status[StatusType.ID].getType());
+
+
+       			PushOutput<DFEStruct> statusOutput = io.pushOutput(OUTPUT_STATUS, StatusType.getType(), 16);
+       			statusOutput.data <== status;
+       			statusOutput.valid <== ~statusOutput.stall & secValid;
+   			}
+
+
+   			orders.add(order);
+   			sendOrders.add(sendOrder);
+		}
+
+		PushOutput<DFEStruct> orderOutput = io.pushOutput(OUTPUT, OrderEntryType.getType(), 16);
+
+		// Buy side has priority.
+		DFEStruct theOrder = sendOrders[Side.BUY.ordinal()] ? orders[Side.BUY.ordinal()] : orders[Side.SELL.ordinal()];
+		DFEVar sendOrderNow = TreeReduce.reduce(new KernelBinaryOp.Or<DFEVar>(), sendOrders);
+
+		DFEVar orderOutputValid = secValid & sendOrderNow;
+
+		debug.simPrintf(orderOutputValid, "[%d] NEW ORDER for security %d, Side=%d, %d @ %d\n",
+				updateNum,
+				theOrder[OrderEntryType.SECURITY_ID],
+				theOrder[OrderEntryType.SIDE],
+				theOrder[OrderEntryType.QTY],
+				theOrder[OrderEntryType.PRICE]);
+
+		orderOutput.data <== theOrder;
+		orderOutput.valid <== orderOutputValid;
+
+		inputMarketUpdate.stall <== optimization.pipeline(orderOutput.stall);
+	}
+
+	/*
+	 * Converts a security ID to a select bit.
+	 *
+	 * Example:
+	 *
+	 * securities contains:
+	 * securities[0] = 123
+	 * securities[1] = 456
+	 * securities[2] = 789
+	 *
+	 * The current secId = 789
+	 *
+	 * the return value will be "100" binary, where bit index 2 is set, which is the index at which 789 appears.
+	 */
+	private DFEVar secIdToSecSelect(List<DFEVar> securities, DFEVar secId) {
+
+		DFEVar secSelect = null;
+
+		for (int s=0; s < securities.size(); s++) {
+			DFEVar isSecMatch = secId === securities[s];
+			if (secSelect == null) secSelect = isSecMatch;
+			else secSelect = isSecMatch # secSelect;
+		}
+
+		return secSelect;
+	}
+
+	private DFEVar orReduce(DFEVar v) {
+		int width = v.getType().getTotalBits();
+		List<DFEVar> bits = new ArrayList<>();
+		for (int i=0; i < width; i++) {
+			bits.add(v.slice(i));
+		}
+		return TreeReduce.reduce(new KernelBinaryOp.Or<DFEVar>(), bits);
+	}
+}

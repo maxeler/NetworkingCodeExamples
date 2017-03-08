@@ -1,0 +1,32 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+
+public class OrderEntryType extends DFEStructType {
+
+	public static final String PADDING = "padding";
+	public static final String PRICE = "price";
+	public static final String QTY = "qty";
+	public static final String SIDE = "side";
+	public static final String SECURITY_ID = "securityId";
+
+	public static final OrderEntryType getType() {
+		return new OrderEntryType();
+	}
+
+	public OrderEntryType() {
+		super(
+				sft(SECURITY_ID, Types.secIdType),
+				sft(SIDE, Side.getType()),
+				sft(QTY, Types.qtyType),
+				sft(PRICE, Types.priceType),
+				sft(PADDING, DFETypeFactory.dfeUInt(24))
+		);
+	}
+
+	public static void main(String [] args) {
+		StructUtils.printDFEStructType(OrderEntryType.getType());
+	}
+}

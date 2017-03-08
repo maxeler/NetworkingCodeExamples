@@ -1,0 +1,47 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
+
+public class GenericLinkType extends DFEStructType implements FramedLinkType {
+	private static final String SOF = "sof";
+	private static final String MOD = "mod";
+	private static final String EOF = "eof";
+	private static final String DATA = "data";
+
+	public GenericLinkType(int dataWidth) {
+		super(
+				sft(DATA, DFETypeFactory.dfeUInt(dataWidth)),
+				sft(SOF, DFETypeFactory.dfeBool()),
+				sft(EOF, DFETypeFactory.dfeBool()),
+				sft(MOD, DFETypeFactory.dfeUInt(MathUtils.bitsToAddress(dataWidth / 8)))
+			);
+	}
+
+	@Override
+	public DFEStructType getDFEStructType() {
+		return this;
+	}
+
+	@Override
+	public String getData() {
+		return DATA;
+	}
+
+	@Override
+	public String getEOF() {
+		return EOF;
+	}
+
+	@Override
+	public String getMod() {
+		return MOD;
+	}
+
+	@Override
+	public String getSOF() {
+		return SOF;
+	}
+}

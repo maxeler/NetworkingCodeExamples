@@ -1,0 +1,22 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+
+
+public class TimestampStructType extends DFEStructType {
+
+	public static final TimestampStructType timestampStructType = new TimestampStructType();
+
+	public static final String TIMESTAMP = "timestamp";
+	public static final String DOUBT = "doubt";
+	public static final String VALID = "valid";
+
+	public TimestampStructType() {
+		super(
+				sft(TIMESTAMP, DFETypeFactory.dfeUInt(64)),
+				sft(DOUBT, DFETypeFactory.dfeBool()),
+				sft(VALID, DFETypeFactory.dfeBool())
+		);
+	}
+}

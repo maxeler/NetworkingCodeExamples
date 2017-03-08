@@ -1,0 +1,77 @@
+package com.maxeler.examples.tradingstrategy.signals;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.maxeler.examples.tradingstrategy.types.MdUpdateType;
+import com.maxeler.examples.tradingstrategy.types.OrderBookType;
+import com.maxeler.examples.tradingstrategy.types.OrderBookType.BookLevelType;
+import com.maxeler.examples.tradingstrategy.types.Side;
+import com.maxeler.examples.tradingstrategy.types.Types;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelLite;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+
+public class Signals {
+	private DFEStruct orderBook;
+	public final Side side;
+	public List<DFEVar> secIds;
+	public List<DFEVar> ema;
+	public List<DFEVar> vwap;
+	public List<DFEVar> liveness;
+
+	private Signals(List<DFEVar> secIds, Side side) {
+		this.secIds = new ArrayList<>(secIds);
+
+		ema = new ArrayList<>();
+		vwap = new ArrayList<>();
+		liveness = new ArrayList<>();
+
+		this.side = side;
+	}
+
+	public static Signals compute(KernelLite owner,
+			List<DFEVar> securities, Side side,
+			DFEVar secSelect, DFEStruct update, DFEVar updateValid,
+			DFEVar timestamp, DFEVar updateNum) {
+
+		Signals signals = new Signals(securities, side);
+
+		DFEVar tradeValid = updateValid & (DFEVar)update[MdUpdateType.TRADE_VALID];
+		DFEStruct tradeUpdate = update[MdUpdateType.TRADE_UPDATE];
+
+		DFEVar orderBookValid = updateValid & (DFEVar)update[MdUpdateType.BOOK_VALID];
+
+		List<DFEStruct> lastOrderBooks = new ArrayList<>();
+		for (int i=0; i < securities.size(); i++) {
+			lastOrderBooks.add(Reductions.streamHold((DFEStruct)update[MdUpdateType.ORDER_BOOK],
+													 secSelect.slice(i) & orderBookValid));
+		}
+
+		signals.orderBook = owner.control.oneHotMux(secSelect, lastOrderBooks);
+
+		DFEVar updatePrice = signals.getPrice(side);
+
+		DFEVar alpha = owner.io.scalarInput("emaAlpha" + side.name(), Types.computeType);
+		DFEVar livenessC = owner.io.scalarInput("livenessC" + side.name(), Types.computeType);
+
+		ExponentialMovingAverage.compute(owner, signals, secSelect, alpha, updatePrice, orderBookValid);
+		VolumeWeightedAveragePrice.compute(owner, signals, secSelect, tradeUpdate, tradeValid);
+		Liveness.compute(owner, signals, secSelect, livenessC, tradeUpdate, tradeValid, timestamp);
+
+		return signals;
+	}
+
+	public DFEVar getPrice(Side side) {
+		DFEStruct topOfBook = orderBook[OrderBookType.LEVEL1];
+
+		return topOfBook[side == Side.BUY ? BookLevelType.BUY_PRICE : BookLevelType.SELL_PRICE];
+	}
+
+	public DFEVar getQty(Side side) {
+		DFEStruct topOfBook = orderBook[OrderBookType.LEVEL1];
+
+		return topOfBook[side == Side.BUY ? BookLevelType.BUY_QTY : BookLevelType.SELL_QTY];
+	}
+}

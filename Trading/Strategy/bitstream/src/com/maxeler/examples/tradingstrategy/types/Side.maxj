@@ -1,0 +1,42 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelBase;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.utils.Bits;
+
+public enum Side {
+	BUY(0),
+	SELL(1);
+
+	private int value;
+
+	private Side(int value) {
+		this.value = value;
+	}
+
+	public Bits getValue() {
+		return getType().encodeConstant(value);
+	}
+
+	public DFEVar getConstant(KernelBase<?> owner) {
+		return owner.constant.var(getType(), getValue());
+	}
+
+	public static DFEType getType() {
+		return DFETypeFactory.dfeUInt(8);
+	}
+
+	public DFEVar equals(DFEVar other) {
+		return other === (other.getOwner().constant.var(getType(), getValue()));
+	}
+
+	public static DFEVar isBuy(DFEVar other) {
+		return BUY.equals(other);
+	}
+
+	public static DFEVar isSell(DFEVar other) {
+		return SELL.equals(other);
+	}
+}

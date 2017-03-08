@@ -1,0 +1,42 @@
+package com.maxeler.examples.tradingstrategy.types;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxeleros.managerblocks.StructUtils;
+
+public class StatusType extends DFEStructType {
+
+	public static final String EXECUTE = "execute";
+	public static final String VWAP_FACTOR = "vwapFactor";
+	public static final String EMA_FACTOR = "emaFactor";
+	public static final String BEST_PRICE = "bestPrice";
+	public static final String LIVENESS = "liveness";
+	public static final String VWAP = "vwap";
+	public static final String EMA = "ema";
+	public static final String ID = "id";
+	public static final String SECURITY_ID = "securityId";
+	public static final String SIDE = "side";
+
+	public static final StatusType getType() {
+		return new StatusType();
+	}
+
+	public StatusType() {
+		super(
+				sft(EMA, Types.standardDouble),
+				sft(VWAP, Types.standardDouble),
+				sft(LIVENESS, Types.standardDouble),
+				sft(BEST_PRICE, Types.standardDouble),
+				sft(EMA_FACTOR, Types.standardDouble),
+				sft(VWAP_FACTOR, Types.standardDouble),
+				sft(EXECUTE, Types.standardDouble),
+				sft(SECURITY_ID, Types.secIdType),
+				sft(SIDE, Side.getType()),
+				sft(ID, DFETypeFactory.dfeUInt(24))
+		);
+	}
+
+	public static void main(String [] args) {
+		StructUtils.printDFEStructType(StatusType.getType());
+	}
+}
