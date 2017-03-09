@@ -141,7 +141,7 @@ static void *statusThread(void *arg) {
 	struct status *status;
 	FILE *stats = fopen("stats.csv", "w");
 
-	fprintf(stats, "bestPrice, ema, vwap, liveness, execute\n");
+	fprintf(stats, "secid, bestPrice, ema, vwap, liveness, execute\n");
 
 	while (running) {
 		if (max_llstream_read(status_stream, 1, &slot) == 1) {
@@ -156,8 +156,9 @@ static void *statusThread(void *arg) {
 					status->bestPrice,
 					status->execute);
 
-			fprintf(stats, "%.3f, %.3f, %.3f, %.3f, %.3f\n",
-					 status->bestPrice, status->ema, status->vwap, status->liveness, status->execute);
+			fprintf(stats, "%u, %.3f, %.3f, %.3f, %.3f, %.3f\n",
+					status->securityId,
+					status->bestPrice, status->ema, status->vwap, status->liveness, status->execute);
 
 			max_llstream_read_discard(status_stream, 1);
 		} else {
@@ -171,10 +172,10 @@ static void *statusThread(void *arg) {
 static void configure_params(max_file_t *maxfile, max_engine_t *engine)
 {
 	max_actions_t *action = max_actions_init_explicit(maxfile);
-	max_set_uint64t(action, "StrategyKernel", "secId0", 123456);
-	max_set_uint64t(action, "StrategyKernel", "secId1", 999999);
+	max_set_uint64t(action, "StrategyKernel", "secId0", 666666);
+	max_set_uint64t(action, "StrategyKernel", "secId1", 777777);
 	max_set_uint64t(action, "StrategyKernel", "secId2", 888888);
-	max_set_uint64t(action, "StrategyKernel", "secId3", 777777);
+	max_set_uint64t(action, "StrategyKernel", "secId3", 999999);
 
 	max_set_double(action, "StrategyKernel", "emaAlphaBUY", 1 / 100.0);
 	max_set_double(action, "StrategyKernel", "livenessCBUY", 1 / 10.0);
@@ -224,8 +225,9 @@ int main(int argc, char *argv[])
 	pthread_create(&status_thread, NULL, statusThread, status_stream);
 
 
-	for (size_t i=0; i < 2000 && getNextMarketUpdate(filename, &update) == 1; i++) {
+	for (size_t i=0; getNextMarketUpdate(filename, &update) == 1; i++) {
 		pushUpdate(md_stream, &update);
+		usleep(10000);
 	}
 
 	sleep(1);
