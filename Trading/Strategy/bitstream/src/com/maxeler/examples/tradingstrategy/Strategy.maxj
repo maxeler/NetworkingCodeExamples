@@ -49,9 +49,9 @@ public class Strategy extends KernelLite {
 		DFEVar secValid = updateValid & orReduce(secSelect);
 
 		DFEVar updateNum = control.count.makeCounter(
-					control.count.makeParams(32)
-						.withEnable(updateValid)
-					).getCount();
+				control.count.makeParams(32)
+				.withEnable(updateValid)
+				).getCount();
 
 		debug.simPrintf(inputMarketUpdate.valid & (DFEVar)update[MdUpdateType.BOOK_VALID],
 				"[%d] Processing book update for security [%d] -> Bid %d, %d Offer\n",
@@ -72,66 +72,63 @@ public class Strategy extends KernelLite {
 		List<DFEVar> sendOrders = new ArrayList<>();
 
 		for (Side side : Side.values()) {
-    		Signals signals = Signals.compute(this, securities, side, secSelect, update, updateValid, timestamp, updateNum);
+			Signals signals = Signals.compute(this, securities, side, secSelect, update, updateValid, timestamp, updateNum);
 
 
-    		DFEVar cEma = io.scalarInput("cEma" + side.name(), Types.computeType);
-    		DFEVar cVwap = io.scalarInput("cVwap" + side.name(), Types.computeType);
-    		DFEVar cLiveness = io.scalarInput("cLiveness" + side.name(), Types.computeType);
+			DFEVar cEma = io.scalarInput("cEma" + side.name(), Types.computeType);
+			DFEVar cVwap = io.scalarInput("cVwap" + side.name(), Types.computeType);
+			DFEVar cLiveness = io.scalarInput("cLiveness" + side.name(), Types.computeType);
 
-    		DFEVar executeThreshold = io.scalarInput("executeThreshold" + side.name(), Types.computeType);
+			DFEVar executeThreshold = io.scalarInput("executeThreshold" + side.name(), Types.computeType);
 
-    		DFEVar ema = control.oneHotMux(secSelect, signals.ema);
-    		DFEVar vwap = control.oneHotMux(secSelect, signals.vwap);
-    		DFEVar liveness = control.oneHotMux(secSelect, signals.liveness);
+			DFEVar ema = control.oneHotMux(secSelect, signals.ema);
+			DFEVar vwap = control.oneHotMux(secSelect, signals.vwap);
+			DFEVar liveness = control.oneHotMux(secSelect, signals.liveness);
 
-    		DFEVar bestPrice = signals.getPrice(side).cast(Types.computeType);
+			DFEVar bestPrice = signals.getPrice(side).cast(Types.computeType);
 
-    		DFEVar emaFactor = bestPrice / ema;
-    		DFEVar vwapFactor = bestPrice / vwap;
+			DFEVar emaFactor = bestPrice / ema;
+			DFEVar vwapFactor = bestPrice / vwap;
 
-   			DFEVar execute = cEma * emaFactor + cVwap * vwapFactor + cLiveness * liveness;
-//   			if (side == Side.BUY) {
-//   				debug.simPrintf(secValid, "emaFactor=%f, vwapFactor=%f, liveness=%f --> execute = %f\n",
-//   						emaFactor, vwapFactor, liveness, execute);
-//   			}
-   			DFEVar sendOrder = execute >= executeThreshold;
-   			DFEVar secId = control.oneHotMux(secSelect, securities);
-   			DFEVar shouldBuy = bestPrice < vwap;
-   			DFEVar orderSide = shouldBuy ? Side.BUY.getConstant(this) : Side.SELL.getConstant(this);
+			DFEVar execute = cEma * emaFactor + cVwap * vwapFactor + cLiveness * liveness;
 
-   			DFEVar bestBuyPrice = signals.getPrice(Side.BUY);
-    		DFEVar bestSellPrice = signals.getPrice(Side.SELL);
+			DFEVar sendOrder = execute >= executeThreshold;
+			DFEVar secId = control.oneHotMux(secSelect, securities);
+			DFEVar shouldBuy = bestPrice < vwap;
+			DFEVar orderSide = shouldBuy ? Side.BUY.getConstant(this) : Side.SELL.getConstant(this);
 
-   			DFEStruct order = OrderEntryType.getType().newInstance(this);
-   			order[OrderEntryType.PRICE] = shouldBuy ? bestSellPrice : bestBuyPrice;
-   			order[OrderEntryType.SECURITY_ID] = secId;
-   			order[OrderEntryType.QTY] = constant.var(Types.qtyType, 1); // 1 lot
-   			order[OrderEntryType.SIDE] = orderSide;
-   			order[OrderEntryType.PADDING] = constant.var((DFEType)order[OrderEntryType.PADDING].getType(), 0);
+			DFEVar bestBuyPrice = signals.getPrice(Side.BUY);
+			DFEVar bestSellPrice = signals.getPrice(Side.SELL);
 
-   			if (side == Side.BUY) {
-       			DFEStruct status = StatusType.getType().newInstance(this);
-       			status[StatusType.SECURITY_ID] = secId;
-       			status[StatusType.BEST_PRICE] = bestPrice.cast(Types.standardDouble);
-       			status[StatusType.EMA] = ema.cast(Types.standardDouble);
-       			status[StatusType.VWAP] = vwap.cast(Types.standardDouble);
-       			status[StatusType.LIVENESS] = liveness.cast(Types.standardDouble);
-       			status[StatusType.EMA_FACTOR] = emaFactor.cast(Types.standardDouble);
-       			status[StatusType.VWAP_FACTOR] = vwapFactor.cast(Types.standardDouble);
-       			status[StatusType.EXECUTE] = execute.cast(Types.standardDouble);
-       			status[StatusType.SIDE] = side.getConstant(this);
-       			status[StatusType.ID] = updateNum.cast((DFEType)status[StatusType.ID].getType());
+			DFEStruct order = OrderEntryType.getType().newInstance(this);
+			order[OrderEntryType.PRICE] = shouldBuy ? bestSellPrice : bestBuyPrice;
+			order[OrderEntryType.SECURITY_ID] = secId;
+			order[OrderEntryType.QTY] = constant.var(Types.qtyType, 1); // 1 lot
+			order[OrderEntryType.SIDE] = orderSide;
+			order[OrderEntryType.PADDING] = constant.var((DFEType)order[OrderEntryType.PADDING].getType(), 0);
+
+			if (side == Side.BUY) {
+				DFEStruct status = StatusType.getType().newInstance(this);
+				status[StatusType.SECURITY_ID] = secId;
+				status[StatusType.BEST_PRICE] = bestPrice.cast(Types.standardDouble);
+				status[StatusType.EMA] = ema.cast(Types.standardDouble);
+				status[StatusType.VWAP] = vwap.cast(Types.standardDouble);
+				status[StatusType.LIVENESS] = liveness.cast(Types.standardDouble);
+				status[StatusType.EMA_FACTOR] = emaFactor.cast(Types.standardDouble);
+				status[StatusType.VWAP_FACTOR] = vwapFactor.cast(Types.standardDouble);
+				status[StatusType.EXECUTE] = execute.cast(Types.standardDouble);
+				status[StatusType.SIDE] = side.getConstant(this);
+				status[StatusType.ID] = updateNum.cast((DFEType)status[StatusType.ID].getType());
 
 
-       			PushOutput<DFEStruct> statusOutput = io.pushOutput(OUTPUT_STATUS, StatusType.getType(), 16);
-       			statusOutput.data <== status;
-       			statusOutput.valid <== ~statusOutput.stall & secValid;
-   			}
+				PushOutput<DFEStruct> statusOutput = io.pushOutput(OUTPUT_STATUS, StatusType.getType(), 16);
+				statusOutput.data <== status;
+				statusOutput.valid <== ~statusOutput.stall & secValid;
+			}
 
 
-   			orders.add(order);
-   			sendOrders.add(sendOrder);
+			orders.add(order);
+			sendOrders.add(sendOrder);
 		}
 
 		PushOutput<DFEStruct> orderOutput = io.pushOutput(OUTPUT, OrderEntryType.getType(), 16);
