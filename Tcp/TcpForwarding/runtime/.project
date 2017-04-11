@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>TcpForwardingRuntime</name>
+	<name>TcpFastPathForwardingRuntime</name>
 	<comment></comment>
 	<manageMaxCompiler>false</manageMaxCompiler>
 	<manageMaxGenFD>false</manageMaxGenFD>
@@ -28,15 +28,15 @@
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildArguments</key>
-					<value></value>
+					<value>${CWD}/build.sh</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildCommand</key>
-					<value>./build.py</value>
+					<value>/bin/bash</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value></value>
+					<value>${workspace_loc:/TcpForwardingRuntime}</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>

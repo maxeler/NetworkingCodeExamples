@@ -2,7 +2,10 @@
 
 #include "common.h"
 
-#include "MaxSLiCInterface.h"
+#include <MaxSLiCInterface.h>
+#include <MaxSLiCNetInterface.h>
+#include <max_tcp_fast_path.h>
+#include <max_udp_fast_path.h>
 
 extern max_file_t *TcpForwarding_init();
 static struct in_addr netmask;
@@ -13,6 +16,8 @@ static struct in_addr *remote_ips;
 
 static max_file_t *maxfile;
 static max_engine_t *engine;
+static max_tcpfp_t *max_tcpfp;
+static max_udpfp_multirx_t *max_udpfp_rx;
 
 #define PACKED __attribute__((packed))
 
@@ -35,7 +40,7 @@ static void init_consumers(size_t num_consumers);
 static void init_multicast_feed();
 static void events_loop(size_t num_consumers);
 
-static max_tcp_socket_t **consumer_sockets;
+int hw_rx_socket = 0;
 
 uint16_t get_consumer_port(size_t consumer_index) {
 	return CONSUMER_DST_PORT + consumer_index;
@@ -75,8 +80,6 @@ int main(int argc, char *argv[])
 	max_actions_t *action = max_actions_init(maxfile, NULL);
 	max_run(engine, action);
 
-	consumer_sockets = malloc(sizeof(max_tcp_socket_t*) * num_consumers);
-
 	init_decision(num_consumers);
 	init_multicast_feed();
 	init_consumers(num_consumers);
@@ -85,6 +88,9 @@ int main(int argc, char *argv[])
 	events_loop(num_consumers);
 
 
+	max_tcpfp_destroy(max_tcpfp);
+	max_udpfp_multirx_close(max_udpfp_rx, hw_rx_socket);
+	max_udpfp_multirx_destroy(max_udpfp_rx);
 	max_unload(engine);
 	max_file_free(maxfile);
 
@@ -111,6 +117,8 @@ static void events_loop(size_t num_consumers)
 			if (the_event->forward_decision == 0) printf("DROPPED\n");
 			else printf("Forwarded to consumer %d\n", the_event->consumer_id);
 			max_llstream_read_discard(event_stream, 1);
+		} else {
+			usleep(10);
 		}
 	}
 }
@@ -132,16 +140,24 @@ static void init_decision(size_t numConsmers)
 static void init_consumers(size_t num_consumers)
 {
 	printf("Setting up %zd consumer sockets...\n", num_consumers);
-	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1, &dfe_bot_ip, &netmask);
 
-	for (size_t i=0; i< num_consumers; i++) {
-		consumer_sockets[i] = max_tcp_create_socket_with_number(engine, "Consumers", i);
+	max_net_connection_t connection = MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1;
+	max_ip_config(engine, connection, &dfe_bot_ip, &netmask);
+	struct in_addr gw = { .s_addr = 0 };
+	max_ip_route_set_default_gw(engine, connection, &gw);
+	max_tcpfp = max_tcpfp_init(maxfile, engine, "Consumers");
+	if(max_tcpfp == NULL) {
+		err(1, "max_tcpfp_init failed");
 	}
 
 	struct timeval timeout = { .tv_sec = 5, .tv_usec = 0 };
 	for (size_t i=0; i< num_consumers; i++) {
-		max_tcp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
-		max_tcp_await_state(consumer_sockets[i], MAX_TCP_STATE_ESTABLISHED, &timeout);
+		max_tcpfp_error_t e = max_tcpfp_connect(max_tcpfp, i, &remote_ips[i], get_consumer_port(i));
+		if (e) {
+			err(1, "max_tcpfp_connect returned error: %s",
+					max_tcpfp_get_error_message(e));
+		}
+		max_tcpfp_wait_for_socket_state(max_tcpfp, i, MAX_TCPFP_SOCKET_STATE_ESTABLISHED, &timeout);
 	}
 }
 
@@ -149,7 +165,7 @@ static void init_multicast_feed()
 {
 	printf("Setting up multicast feed socket...\n");
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
-	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
-	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
+	max_udpfp_multirx_init(maxfile, engine, "UdpMulticastFeed", &max_udpfp_rx);
+	max_udpfp_multirx_open(max_udpfp_rx, hw_rx_socket, &multicast_ip, MULTICAST_PORT);
 }
 
