@@ -1,9 +1,7 @@
 package com.maxeler.examples.tcpforwarding;
 
-import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.ConsumerLinkType;
 import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.DecisionRomStructType;
 import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.EventsStructType;
-import com.maxeler.examples.tcpforwarding.TcpForwardingTypes.InputFeedLinkType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
@@ -12,38 +10,44 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.tcp.fastpath.types.MaxTcpLinkType;
+import com.maxeler.udp.fastpath.types.UdpMultiRxType;
+import com.maxeler.udp.fastpath.types.UdpType;
 
 public class TcpForwardingKernel extends Kernel {
 	public static String INPUT = "inputFeed";
 	public static String OUTPUT_CONSUMERS = "toConsumers";
 	public static String OUTPUT_EVENTS_TO_CPU = "events";
 
-	public TcpForwardingKernel(KernelParameters params) {
+	public TcpForwardingKernel(KernelParameters params, MaxTcpLinkType consumerLinkType, UdpMultiRxType inputFeedLinkType) {
 		super(params);
 		flush.disabled();
 
 		NonBlockingInput<DFEStruct> input = io.nonBlockingInput(INPUT,
-				TcpForwardingTypes.inputFeedLinkType,
-				TcpForwardingTypes.inputFeedLinkType.getPositionForField(TcpForwardingTypes.InputFeedLinkType.EOF));
+				inputFeedLinkType.getDFEStructType(),
+				inputFeedLinkType.getDFEStructType().getPositionForField(inputFeedLinkType.getEOF()));
 
-		InputMessage inputMessage = processInputFeed(input);
+		InputMessage inputMessage = processInputFeed(input, inputFeedLinkType);
 		ConsumerDecision decision = makeDecision(inputMessage);
 
-		io.output(OUTPUT_CONSUMERS, TcpForwardingTypes.consumerLinkType.getDFEStructType(),
-				inputMessage.valid & decision.shouldForward) <== genConsumerOutput(inputMessage, decision);
+		io.output(OUTPUT_CONSUMERS, consumerLinkType.getDFEStructType(),
+				inputMessage.valid & decision.shouldForward) <== genConsumerOutput(inputMessage, decision, consumerLinkType);
 
 		io.output(OUTPUT_EVENTS_TO_CPU, TcpForwardingTypes.eventType,
 				inputMessage.isMessageStart) <== genCpuEvent(inputMessage, decision);
 	}
 
-	private DFEStruct genConsumerOutput(InputMessage inputMessage,	ConsumerDecision decision) {
-		DFEStruct consumerLink = TcpForwardingTypes.consumerLinkType.getDFEStructType().newInstance(this);
+	private DFEStruct genConsumerOutput(InputMessage inputMessage,	ConsumerDecision decision, MaxTcpLinkType consumerLinkType) {
+		DFEStruct consumerLink = consumerLinkType.getDFEStructType().newInstance(this);
 
-		consumerLink[ConsumerLinkType.DATA] <== inputMessage.data;
-		consumerLink[ConsumerLinkType.SOF] <== inputMessage.sof;
-		consumerLink[ConsumerLinkType.EOF] <== inputMessage.eof;
-		consumerLink[ConsumerLinkType.MOD] <== inputMessage.mod;
-		consumerLink[ConsumerLinkType.SOCKET] <== decision.targetConsumer;
+		DFEType socketIdType = (DFEType) consumerLinkType.getDFEStructType().getTypeForField(consumerLinkType.getSocketNumber());
+		DFEVar socketId = decision.targetConsumer.cast(socketIdType);
+		
+		consumerLink[consumerLinkType.getData()] <== inputMessage.data;
+		consumerLink[consumerLinkType.getSOF()] <== inputMessage.sof;
+		consumerLink[consumerLinkType.getEOF()] <== inputMessage.eof;
+		consumerLink[consumerLinkType.getMod()] <== inputMessage.mod;
+		consumerLink[consumerLinkType.getSocketNumber()] <== socketId;
 
 		return consumerLink;
 	}
@@ -97,14 +101,14 @@ public class TcpForwardingKernel extends Kernel {
 		public DFEVar mod;
 	}
 
-	private InputMessage processInputFeed(NonBlockingInput<DFEStruct> input) {
+	private InputMessage processInputFeed(NonBlockingInput<DFEStruct> input, UdpMultiRxType inputFeedLinkType) {
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
-		DFEVar data = inputStruct.get(InputFeedLinkType.DATA);
-		DFEVar sof = inputStruct.get(InputFeedLinkType.SOF);
-		DFEVar eof = inputStruct.get(InputFeedLinkType.EOF);
-		DFEVar mod = inputStruct.get(InputFeedLinkType.MOD);
-		DFEVar socket = inputStruct.get(InputFeedLinkType.SOCKET);
+		DFEVar data = inputStruct.get(inputFeedLinkType.getData());
+		DFEVar sof = inputStruct.get(inputFeedLinkType.getSOF());
+		DFEVar eof = inputStruct.get(inputFeedLinkType.getEOF());
+		DFEVar mod = inputStruct.get(inputFeedLinkType.getMod());
+		DFEVar socket = inputStruct.get(UdpType.SOCKET); // TODO
 
 		/*
 		 * Start of message marker

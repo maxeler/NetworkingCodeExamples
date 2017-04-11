@@ -1,5 +1,7 @@
 package com.maxeler.examples.tcpforwarding;
 
+import com.maxeler.maxblox.statemachine.TieOffNode;
+import com.maxeler.maxblox.statemachine.TieOffNode.IOPattern;
 import com.maxeler.maxcompiler.v2.build.EngineParameters;
 import com.maxeler.maxcompiler.v2.managers.BuildConfig;
 import com.maxeler.maxcompiler.v2.managers.BuildConfig.Effort;
@@ -9,10 +11,11 @@ import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
-import com.maxeler.networking.v1.managers.netlib.TCPStream;
-import com.maxeler.networking.v1.managers.netlib.UDPChecksumMode;
-import com.maxeler.networking.v1.managers.netlib.UDPConnectionMode;
-import com.maxeler.networking.v1.managers.netlib.UDPStream;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath;
+import com.maxeler.tcp.fastpath.MaxTcpFastPath.ChecksumMode;
+import com.maxeler.udp.fastpath.MaxUdpFastPath;
+import com.maxeler.udp.fastpath.MaxUdpFastPathConfig;
+import com.maxeler.udp.fastpath.MaxUdpMultiRx;
 
 
 public class TcpForwardingManager extends NetworkManager {
@@ -25,27 +28,36 @@ public class TcpForwardingManager extends NetworkManager {
 		/*
 		 * Multicast feed input
 		 */
-		UDPStream udpMulticastFeed = addUDPStream("UdpMulticastFeed", Max4NetworkConnection.QSFP_TOP_10G_PORT1,
-				UDPConnectionMode.OneToMany, UDPChecksumMode.Disabled);
+		Max4NetworkConnection udpConnection = Max4NetworkConnection.QSFP_TOP_10G_PORT1;
+		network_config.setEthernetMacType(EthernetMacType.ULTRA_LOW_LATENCY);
+		network_config.setEthernetEnableTransmitStoreAndFwd(udpConnection, false);
+
+		MaxUdpFastPathConfig config = new MaxUdpFastPathConfig();
+		config.setRxChecksumMode(MaxUdpFastPathConfig.RxChecksumMode.DISABLED);
+		MaxUdpMultiRx udpMulticastFeed = MaxUdpFastPath.createMultiRx(this, "UdpMulticastFeed", udpConnection, config);
+
 
 		/*
 		 * Consumer TCP streams
 		 */
-		TCPStream consumers = addTCPStream("Consumers", Max4NetworkConnection.QSFP_BOT_10G_PORT1);
+		Max4NetworkConnection tcpConnection = Max4NetworkConnection.QSFP_BOT_10G_PORT1;
+		network_config.setEthernetMacType(EthernetMacType.ULTRA_LOW_LATENCY);
+
+		MaxTcpFastPath consumers = MaxTcpFastPath.create(this, "Consumers", tcpConnection, ChecksumMode.AUTO_CALCULATED);
 
 		ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
 
-
 		/*
 		 * Main Kernel
 		 */
-		KernelBlock k = addKernel(new TcpForwardingKernel(makeKernelParameters("fwd")));
+		KernelBlock k = addKernel(new TcpForwardingKernel(makeKernelParameters("fwd"), consumers.getSimpleTxLinkType(), udpMulticastFeed.getRxStreamType()));
 
-
-		k.getInput(TcpForwardingKernel.INPUT) <== udpMulticastFeed.getReceiveStream();
-		consumers.getTransmitStream() <== k.getOutput(TcpForwardingKernel.OUTPUT_CONSUMERS);
+		k.getInput(TcpForwardingKernel.INPUT) <== udpMulticastFeed.getRxStream();
+		consumers.getTxStream() <== k.getOutput(TcpForwardingKernel.OUTPUT_CONSUMERS);
 		addStreamToCPU("events") <== k.getOutput(TcpForwardingKernel.OUTPUT_EVENTS_TO_CPU);
+
+		TieOffNode.tieOff(this, consumers.getRxStream(), IOPattern.ADVANCE);
 	}
 
 	public static void main(String[] args) {
