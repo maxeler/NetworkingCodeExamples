@@ -40,11 +40,12 @@ int main(int argc, char *argv[])
 
 
 	/* now just sendto() our destination! */
-	int max_len = sprintf(message, "Hello, World! 1234567890 - "
-			"This is the longest message that I support, "
-			"Here are a few more bytes - there you go. Enjoy!\n");
-	for (size_t i=1; i < max_len; i++) {
+	int max_len = 60;
+	for (size_t i=58; i < max_len; i++) {
+		memset(message, 0xAA, i);
 		printf("Sending messages - size %zd\n", i);
+		uint64_t *number = (void *)(message + 50);
+		*number = 0x1122334455667788UL;
 
 		if (sendto(fd, message, i, 0, (struct sockaddr *) &addr,
 				sizeof(addr)) < 0) {

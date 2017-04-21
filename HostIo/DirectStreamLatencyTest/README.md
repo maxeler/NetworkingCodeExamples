@@ -1,10 +1,10 @@
 # Latency Test 
 
-This test uses low latency PCIe streams.
+This test uses direct PCIe streams.
 It measures the round trip latency between the CPU and the DFE. 
 
 
-
+DirectStreams are a faster way to send data from the CPU to the DFE.
 
 ## How to build
 

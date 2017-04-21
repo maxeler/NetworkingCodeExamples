@@ -1,6 +1,6 @@
 #UDP One To One example 
 
-This is an Maxeler DFE networking example project.
+Example of using UDP One To One Streams.
 
 ## Running
 

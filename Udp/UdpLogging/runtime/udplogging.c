@@ -4,6 +4,7 @@
 #include "common.h"
 #include "MaxSLiCInterface.h"
 #include "MaxSLiCNetInterface.h"
+#include "max_udp_fast_path.h"
 
 #define PACKED __attribute__((packed))
 
@@ -14,7 +15,7 @@ struct PACKED summary_s {
 };
 
 extern max_file_t *UdpLogging_init();
-static void init_multicast_feed(max_engine_t * engine);
+static void init_multicast_feed(max_file_t *maxfile, max_engine_t * engine);
 static void events_loop(max_engine_t * engine);
 static struct in_addr netmask;
 static struct in_addr dfe_top_ip;
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
 	max_run(engine, action);
 
 
-	init_multicast_feed(engine);
+	init_multicast_feed(maxfile, engine);
 	events_loop(engine);
 
 	
@@ -79,12 +80,21 @@ static void events_loop(max_engine_t * engine)
 	}
 }
 
-static void init_multicast_feed(max_engine_t * engine)
+static void init_multicast_feed(max_file_t *maxfile, max_engine_t * engine)
 {
 	printf("Setting up multicast feed socket...\n");
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
-	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
-	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
+	max_udpfp_multirx_t *udpfp = NULL;
+	if (max_udpfp_multirx_init(maxfile, engine, "UdpMulticastFeed", &udpfp)) {
+		printf("init\n");
+		exit(1);
+	}
+
+	if (max_udpfp_multirx_open(udpfp, 0, &multicast_ip, MULTICAST_PORT)) {
+		printf("open\n");
+		exit(1);
+	}
+
 	max_ip_multicast_join_group(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &multicast_ip);
 }
 

@@ -30,6 +30,7 @@
 								<option id="gnu.c.compiler.option.include.paths.1593847544" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${MAXCOMPILERDIR}/include/slic&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${MAXCOMPILERNETDIR}/include/slicnet/&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/MaxUdpFastPath runtime/src/include}&quot;"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1527398438" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>

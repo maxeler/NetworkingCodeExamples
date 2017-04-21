@@ -1,6 +1,6 @@
-# TCP Offload Example
+# MaxTcpFastPath Offload Example
 
-This project shows how to use MaxTcp.
+This project shows how to use MaxTcpFastPath.
 It instantiates MaxTcp in Hardware the controls it through software.
 
 Data is sent from software and received back to software.

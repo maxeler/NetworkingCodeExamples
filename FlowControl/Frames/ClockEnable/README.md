@@ -1,6 +1,6 @@
-# My Project Title
+# Kernel Lite - Clock Enable 
 
-This is a generic project template. My Project does: X, Y, Z.
+Flow control example based on the Clock Enable paradigm. 
 
 
 ## How to build

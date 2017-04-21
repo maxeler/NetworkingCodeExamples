@@ -4,17 +4,19 @@ import sys
 
 try:
 	from RuntimeBuilder import *
+	from Environment import *
 	from Sim import *
 except ImportError, e:
 	print "Couldn't find project-utils modules."
 	sys.exit(1)
 
+MAXUDPFPDIR=Environment.require("MAXUDPFPDIR")
+
 MAXFILES = ['UdpLogging.max']
 sources = ['udplogging.c']
 target = 'udplogging'
-includes = []
-my_cflags = []
-my_ldflags = []
+my_cflags = [ '-I%s/include' % (MAXUDPFPDIR)]
+my_ldflags = [ '-L%s/lib' % (MAXUDPFPDIR), '-lmaxudp']
 
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)

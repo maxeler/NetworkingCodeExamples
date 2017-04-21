@@ -2,5 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/maxeda"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/maxpowernet"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/MaxTcpFastPath bitstream"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/networking-maxeda"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -1,6 +1,9 @@
 # Binary FIFO Gateway example
 
-This is an Maxeler DFE networking example project.
+Create a FIFO Ordering exchange gateway for an arbitrary binary protocol which includes a length field at a fixed offset in the header.
+
+
+The length is stored at byte offset 7 and is 6 bytes long.
 
 ## Running
 

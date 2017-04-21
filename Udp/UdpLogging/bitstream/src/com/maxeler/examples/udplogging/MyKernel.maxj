@@ -1,12 +1,16 @@
 package com.maxeler.examples.udplogging;
 
+import maxpower.network.frame.FrameLink;
+
 import com.maxeler.examples.udplogging.Types.SummaryType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.Reductions;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.IO.NonBlockingInput;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
 import com.maxeler.networking.v1.framed_kernels.FramedLinkType;
 
 public class MyKernel extends Kernel {
@@ -33,6 +37,16 @@ public class MyKernel extends Kernel {
 		DFEVar isFrameStart = inputValid & sof;
 		DFEVar isFrameEnd = inputValid & eof;
 
+		FrameLink inputLink = FrameLink.wrap(inputType, inputStruct, inputValid);
+
+
+		FieldDesc testType = new FieldDesc(dfeUInt(64), 50);
+
+		DFEVar testData = captureField(inputLink.frameStart(), inputLink.data(), testType);
+
+		debug.simPrintf(inputLink.valid(), "Got data: 0x%x, sof=%d, eof=%d, mod=%d, testData = 0x%x\n",
+				inputLink.data(), inputLink.sof(), inputLink.eof(), inputLink.mod(), testData);
+
 		DFEVar frameId = Reductions.streamHold(control.count.makeCounter(
 				control.count.makeParams(64)
 					.withEnable(isFrameStart)
@@ -58,5 +72,38 @@ public class MyKernel extends Kernel {
 		summary["padding"] <== constant.var(dfeUInt(32), 0);
 
 		io.output(OUTPUT, Types.summaryType, isFrameEnd) <== summary;
+	}
+
+	private static class FieldDesc {
+		private final int offset;
+		private final DFEType type;
+
+		public FieldDesc(DFEType type, int offset) {
+			this.type = type;
+			this.offset = offset;
+		}
+
+		public DFEType getType() { return type; }
+		public int getByteOffset() { return offset; }
+	}
+
+	public DFEVar captureField(DFEVar isStart, DFEVar data, FieldDesc field) {
+		int wordSizeBytes = data.getType().getTotalBytes();
+		int fieldSizeBytes = field.getType().getTotalBytes();
+		int offsetMod = field.getByteOffset() % wordSizeBytes;
+		int fieldSizeWords = MathUtils.ceilDivide(fieldSizeBytes, wordSizeBytes) + (offsetMod + fieldSizeBytes > wordSizeBytes ? 1 : 0);
+		int startWord = field.getByteOffset() / wordSizeBytes;
+
+
+		DFEVar theWord = stream.offset(data, startWord);
+
+		for (int w=1; w < fieldSizeWords; w++) {
+			theWord = stream.offset(data, startWord + w) # theWord;
+		}
+
+		DFEVar theField = theWord.slice(offsetMod * 8, fieldSizeBytes * 8);
+		theField = Reductions.streamHold(theField, isStart);
+
+		return theField.cast(field.getType());
 	}
 }

@@ -1,6 +1,9 @@
 # FIFO Gateway example
 
-This is an Maxeler DFE networking example project.
+Create a FIFO ordering exchange gateway for the FIX protocol. 
+
+The gateway derives the message length by inspecting the body length field (tag 9) of the incoming FIX message.
+
 
 ## Running
 
