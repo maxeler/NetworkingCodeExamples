@@ -2,18 +2,10 @@ package com.maxeler.examples.tcpforwarding;
 
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
-import com.maxeler.networking.types.UDPOneToManyRXType;
-import com.maxeler.networking.v1.kernel_types.TCPType;
 
 public class TcpForwardingTypes {
-	public static InputFeedLinkType inputFeedLinkType = new InputFeedLinkType();
-	public static ConsumerLinkType consumerLinkType = new ConsumerLinkType();
 	public static EventsStructType eventType = new EventsStructType();
 	public static DecisionRomStructType decisionRomStructType = new DecisionRomStructType();
-
-
-	public static class ConsumerLinkType extends TCPType { }
-	public static class InputFeedLinkType extends UDPOneToManyRXType { }
 
 	public static class EventsStructType extends DFEStructType {
 		public static String EventCount = "EventCount";
