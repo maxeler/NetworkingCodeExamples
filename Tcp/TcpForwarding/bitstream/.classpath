@@ -2,10 +2,13 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="/network-raid/opt/maxcompiler-2015.2/lib/MaxCompiler.jar">
+	<classpathentry kind="lib" path="/network-raid/opt/maxcompiler-2016.1.1e/lib/MaxCompiler.jar">
 		<attributes>
-			<attribute name="javadoc_location" value="file:/network-raid/opt/maxcompiler-2015.2/docs/MaxCompiler-API/"/>
+			<attribute name="javadoc_location" value="file:/network-raid/opt/maxcompiler-2016.1.1e/docs/MaxCompiler-API/"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="/network-raid/opt/maxcompilernet-2016.1.1d/lib/MaxCompilerNet.jar"/>
+	<classpathentry kind="lib" path="/network-raid/opt/MaxTcpFastPath-2.4/lib/MaxTcpFastPath.jar"/>
+	<classpathentry kind="lib" path="/network-raid/opt/MaxUdpFastPath-1.1/lib/MaxUdpFastPath.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

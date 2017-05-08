@@ -12,7 +12,6 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.tcp.fastpath.types.MaxTcpLinkType;
 import com.maxeler.udp.fastpath.types.UdpMultiRxType;
-import com.maxeler.udp.fastpath.types.UdpType;
 
 public class TcpForwardingKernel extends Kernel {
 	public static String INPUT = "inputFeed";
@@ -104,11 +103,11 @@ public class TcpForwardingKernel extends Kernel {
 	private InputMessage processInputFeed(NonBlockingInput<DFEStruct> input, UdpMultiRxType inputFeedLinkType) {
 		DFEStruct inputStruct = input.data;
 		DFEVar inputValid = input.valid;
-		DFEVar data = inputStruct.get(inputFeedLinkType.getData());
-		DFEVar sof = inputStruct.get(inputFeedLinkType.getSOF());
-		DFEVar eof = inputStruct.get(inputFeedLinkType.getEOF());
-		DFEVar mod = inputStruct.get(inputFeedLinkType.getMod());
-		DFEVar socket = inputStruct.get(UdpType.SOCKET); // TODO
+		DFEVar data = inputStruct.get(UdpMultiRxType.DATA);
+		DFEVar sof = inputStruct.get(UdpMultiRxType.SOF);
+		DFEVar eof = inputStruct.get(UdpMultiRxType.EOF);
+		DFEVar mod = inputStruct.get(UdpMultiRxType.MOD);
+		DFEVar socket = inputStruct.get(UdpMultiRxType.SOCKET);
 
 		/*
 		 * Start of message marker
