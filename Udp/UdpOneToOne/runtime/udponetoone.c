@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <MaxSLiCInterface.h>
+#include <MaxSLiCNetInterface.h>
 
 
 #define IN_PORT 9910
