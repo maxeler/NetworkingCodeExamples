@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os
 
 try:
 	from RuntimeBuilder import *
@@ -9,12 +10,14 @@ except ImportError, e:
 	print "Couldn't find project-utils modules."
 	sys.exit(1)
 
+MAXUDPFPDIR = Environment.require('MAXUDPFPDIR')
+
 MAXFILES = ['UdpOneToOne.max']
 sources = ['udponetoone.c']
 application = 'udponetoone'
 includes = []
-my_cflags = []
-my_ldflags = []
+my_cflags = ['-I%s/include' % MAXUDPFPDIR]
+my_ldflags = ['-L%s/lib' % MAXUDPFPDIR, '-lmaxudp']
 
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)

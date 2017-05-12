@@ -11,15 +11,15 @@ import com.maxeler.networking.statemachines.UDPConstants;
 import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
 import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
 import com.maxeler.networking.v1.kernel_types.UDPOneToOneTXType;
+import com.maxeler.udp.fastpath.types.UdpUniTxType;
 
 public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
 	public static final String INPUT = "input";
 	public static final String OUTPUT = "output";
 
 	public static final SimpleFramedLinkType INPUT_TYPE = new SimpleFramedLinkType();
-	public static final UDPOneToOneTXType OUTPUT_TYPE = new UDPOneToOneTXType();
 
-	public UdpOneToOneTxKernel(final KernelParameters params) {
+	public UdpOneToOneTxKernel(final KernelParameters params, UdpUniTxType outputType) {
 		super(params);
 
 		final NonBlockingInput<DFEStruct> src  = io.nonBlockingInput(
@@ -51,7 +51,7 @@ public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
 		DFEVar metadata = dataIn[SimpleFramedLinkType.DATA];
 		DFEVar socket = metadata.slice(56, UDPConstants.SOCKET_SIZE).cast(dfeUInt(UDPConstants.SOCKET_SIZE));
 
-		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
+		final DFEStruct out = outputType.getDFEStructType().newInstance(this);
 		out[UDPOneToOneTXType.SOF] <== dataIn[SimpleFramedLinkType.SOF];
 		out[UDPOneToOneTXType.EOF] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.EOF], 1);
 		out[UDPOneToOneTXType.MOD] <== stream.offset((DFEVar)dataIn[SimpleFramedLinkType.MOD], 1);
@@ -59,6 +59,6 @@ public class UdpOneToOneTxKernel extends ThroughputFramedKernel {
 		out[UDPOneToOneTXType.SOCKET] <== Reductions.streamHold(socket, sof);
 
 		final DFEVar outputValid = inputValid & stream.offset(inputValid, 1);
-		io.output(OUTPUT, out, OUTPUT_TYPE.getDFEStructType(), outputValid);
+		io.output(OUTPUT, out, outputType.getDFEStructType(), outputValid);
 	}
 }

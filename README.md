@@ -26,6 +26,7 @@ You will need to source the submodule environment files:
 
 ```bash
 source lib/maxpower/config.sh
+source lib/maxpowernet/config.sh
 source utils/config.sh
 source utils/maxenv.sh
 ```
