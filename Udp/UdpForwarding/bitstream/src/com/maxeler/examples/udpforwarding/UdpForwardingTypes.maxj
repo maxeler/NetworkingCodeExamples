@@ -2,20 +2,19 @@ package com.maxeler.examples.udpforwarding;
 
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFETypeFactory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
-import com.maxeler.networking.v1.kernel_types.UDPOneToManyRXType;
-import com.maxeler.networking.v1.kernel_types.UDPOneToOneTXType;
+import com.maxeler.udp.fastpath.types.UdpMultiRxType;
+import com.maxeler.udp.fastpath.types.UdpUniTxType;
 
 public class UdpForwardingTypes {
-  public UDPOneToManyRXType inputFeedLinkType;
-  public UDPOneToOneTXType consumerLinkType;
+  public UdpMultiRxType inputFeedLinkType;
+  public UdpUniTxType consumerLinkType;
   public EventsStructType eventType = new EventsStructType();
   public DecisionRomStructType decisionRomStructType = new DecisionRomStructType();
 
-    public UdpForwardingTypes(UDPOneToManyRXType inputFeedType, UDPOneToOneTXType consumerLinkType) {
+    public UdpForwardingTypes(UdpMultiRxType inputFeedType, UdpUniTxType consumerLinkType) {
       this.inputFeedLinkType = inputFeedType;
       this.consumerLinkType = consumerLinkType;
     }
-
 
 	public static class EventsStructType extends DFEStructType {
 		public static String EventCount = "EventCount";

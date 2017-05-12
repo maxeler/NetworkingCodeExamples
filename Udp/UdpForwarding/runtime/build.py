@@ -9,12 +9,14 @@ except ImportError, e:
 	print "Couldn't find project-utils modules."
 	sys.exit(1)
 
+MAXUDPFPDIR = Environment.require('MAXUDPFPDIR')
+
 MAXFILES = ['UdpForwarding.max']
 sources = ['udpforwarding.c']
 application = 'udpforwarding'
 includes = []
-my_cflags = []
-my_ldflags = []
+my_cflags = ['-I%s/include' % MAXUDPFPDIR]
+my_ldflags = ['-L%s/lib' % MAXUDPFPDIR, '-lmaxudp']
 
 
 b = MaxRuntimeBuilder(maxfiles=MAXFILES)
@@ -47,7 +49,8 @@ def restart_sim():
 def run_sim():
 	build()
 	s.start()
-	e.execCommand([ "./" + application, "172.16.50.1", "172.16.60.1", "225.0.0.37", "172.16.60.10", "172.16.60.10"])
+	#e.execCommand([ "./" + application, "172.16.50.1", "172.16.60.1", "225.0.0.37", "172.16.60.10", "172.16.60.10"])
+	e.execCommand([ "./" + application, "172.16.50.1", "172.16.60.1", "225.0.0.37", "172.16.60.10"])
 	e.wait()
 #	s.stop()
 	

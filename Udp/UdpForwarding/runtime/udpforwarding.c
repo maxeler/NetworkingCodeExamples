@@ -5,6 +5,7 @@
 
 #include "MaxSLiCInterface.h"
 #include "MaxSLiCNetInterface.h"
+#include <max_udp_fast_path.h>
 
 extern max_file_t *UdpForwarding_init();
 static struct in_addr netmask;
@@ -32,8 +33,8 @@ struct PACKED event {
 };
 
 static void init_decision(size_t numConsmers);
-static void init_consumers(size_t numConsumers);
-static void init_multicast_feed();
+static void init_consumers(max_file_t *maxfile, max_engine_t * engine, size_t numConsumers);
+static void init_multicast_feed(max_file_t *maxfile, max_engine_t * engine);
 static void events_loop();
 
 uint16_t get_consumer_port(size_t consumer_index) {
@@ -76,8 +77,8 @@ int main(int argc, char *argv[])
 
 
 	init_decision(num_consumers);
-	init_multicast_feed();
-	init_consumers(num_consumers);
+	init_multicast_feed(maxfile, engine);
+	init_consumers(maxfile, engine, num_consumers);
 
 	printf("Ready, going in to events loop.\n");
 	events_loop();
@@ -127,27 +128,61 @@ static void init_decision(size_t numConsmers)
 	max_run(engine, action);
 }
 
-static void init_consumers(size_t numConsumers)
+static void init_consumers(max_file_t *maxfile, max_engine_t * engine, size_t numConsumers)
 {
 	printf("Setting up %zd consumer sockets...\n", numConsumers);
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1, &dfe_bot_ip, &netmask);
-	max_udp_socket_t **consumer_sockets = malloc(sizeof(max_udp_socket_t*) * numConsumers);
+//	max_udp_socket_t **consumer_sockets = malloc(sizeof(max_udp_socket_t*) * numConsumers);
+//
+//	for (size_t i=0; i< numConsumers; i++) {
+//		consumer_sockets[i] = max_udp_create_socket_with_number(engine, "Consumers", i);
+//	}
+//
+//	for (size_t i=0; i< numConsumers; i++) {
+////		max_udp_bind(consumer_sockets[i], CONSUMER_SRC_PORT);
+//		max_udp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
+//	}
 
-	for (size_t i=0; i< numConsumers; i++) {
-		consumer_sockets[i] = max_udp_create_socket_with_number(engine, "Consumers", i);
-	}
+	max_udpfp_unitx_t *consumer_fp = NULL;
+//	for (size_t i = 0; i < numConsumers; i++) {
+		if (max_udpfp_unitx_init(maxfile, engine, "Consumers", &consumer_fp)) {
+			printf("fail to initialize consumer_fp\n");
+			exit(1);
+		}
+//	}
 
-	for (size_t i=0; i< numConsumers; i++) {
-//		max_udp_bind(consumer_sockets[i], CONSUMER_SRC_PORT);
-		max_udp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
+		max_udpfp_error_t err;
+	for (size_t i = 0; i < numConsumers; i++) {
+		if ((err = max_udpfp_unitx_open(consumer_fp, i, CONSUMER_SRC_PORT + i, &remote_ips[i], get_consumer_port(i), 0))) {
+			printf("fail to open consumer_fp for socket #%d, error msg: %s\n", i, max_udpfp_error_string(err));
+			exit(1);
+		}
 	}
 }
 
-static void init_multicast_feed()
+//static void init_multicast_feed()
+//{
+//	printf("Setting up multicast feed socket...\n");
+//	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
+//	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
+//	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
+//}
+
+static void init_multicast_feed(max_file_t *maxfile, max_engine_t * engine)
 {
 	printf("Setting up multicast feed socket...\n");
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
-	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
-	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
+	max_udpfp_multirx_t *udpfp = NULL;
+	if (max_udpfp_multirx_init(maxfile, engine, "UdpMulticastFeed", &udpfp)) {
+		printf("init\n");
+		exit(1);
+	}
+
+	if (max_udpfp_multirx_open(udpfp, 0, &multicast_ip, MULTICAST_PORT)) {
+		printf("open\n");
+		exit(1);
+	}
+
+	max_ip_multicast_join_group(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &multicast_ip);
 }
 
