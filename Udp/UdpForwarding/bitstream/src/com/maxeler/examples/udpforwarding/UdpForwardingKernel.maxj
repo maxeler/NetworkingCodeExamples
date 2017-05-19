@@ -10,7 +10,6 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
-import com.maxeler.udp.fastpath.types.UdpMultiRxType;
 import com.maxeler.udp.fastpath.types.UdpUniTxType;
 
 public class UdpForwardingKernel extends Kernel {
@@ -32,8 +31,6 @@ public class UdpForwardingKernel extends Kernel {
 		InputMessage inputMessage = processInputFeed(input);
 		ConsumerDecision decision = makeDecision(inputMessage);
 
-		debug.simPrintf(inputMessage.valid & decision.shouldForward, "should output, target consumer: %d\n", decision.targetConsumer);
-
 		io.output(OUTPUT_CONSUMERS, types.consumerLinkType.getDFEStructType(),
 				inputMessage.valid & decision.shouldForward) <== genConsumerOutput(inputMessage, decision);
 
@@ -50,7 +47,6 @@ public class UdpForwardingKernel extends Kernel {
 		consumerLink[types.consumerLinkType.getMod()] <== inputMessage.mod;
 		consumerLink[UdpUniTxType.SOCKET] <== decision.targetConsumer;
 
-		debug.simPrintf(inputMessage.valid,	"consumerLink: %x\n", consumerLink.pack());
 		return consumerLink;
 	}
 
@@ -112,14 +108,11 @@ public class UdpForwardingKernel extends Kernel {
 		DFEVar sof = inputStruct.get(types.inputFeedLinkType.getSOF());
 		DFEVar eof = inputStruct.get(types.inputFeedLinkType.getEOF());
 		DFEVar mod = inputStruct.get(types.inputFeedLinkType.getMod());
-		DFEVar socket = inputStruct.get(UdpMultiRxType.SOCKET);
 
 		/*
 		 * Start of message marker
 		 */
 		DFEVar isMessageStart = inputValid & sof;
-
-		debug.simPrintf(isMessageStart, this.getName() + ": Input message on Socket %d\n", socket);
 
 		/*
 		 * Count the number of input packets

@@ -11,7 +11,7 @@
 	<property name="maxeda"   value="${env.MAXCOMPILERJCP}"/>
 	<property name="maxnet"   value="${env.MAXCOMPILERNETJCP}"/>
 	<property name="maxpowernet"   value="${env.MAXPOWERNETDIR}/bin"/>
-  <property name="maxudpfp"      value="${env.MAXUDPFPDIR}/lib/MaxUdpFastPath.jar"/>
+  <property name="maxudpfp"      value="${env.MAXUDPFPJCP}"/>
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>

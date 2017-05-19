@@ -69,12 +69,12 @@ int main(int argc, char *argv[])
 	maxfile = UdpForwarding_init();
 	engine = max_load(maxfile, "*");
 
-
 	max_config_set_bool(MAX_CONFIG_PRINTF_TO_STDOUT, true);
 
-	max_actions_t *action = max_actions_init(maxfile, NULL);
+	max_actions_t *action = max_actions_init_explicit(maxfile);
 	max_run(engine, action);
-
+	max_actions_free(action);
+	max_reset_engine(engine);
 
 	init_decision(num_consumers);
 	init_multicast_feed(maxfile, engine);
@@ -132,26 +132,14 @@ static void init_consumers(max_file_t *maxfile, max_engine_t * engine, size_t nu
 {
 	printf("Setting up %zd consumer sockets...\n", numConsumers);
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_BOT_10G_PORT1, &dfe_bot_ip, &netmask);
-//	max_udp_socket_t **consumer_sockets = malloc(sizeof(max_udp_socket_t*) * numConsumers);
-//
-//	for (size_t i=0; i< numConsumers; i++) {
-//		consumer_sockets[i] = max_udp_create_socket_with_number(engine, "Consumers", i);
-//	}
-//
-//	for (size_t i=0; i< numConsumers; i++) {
-////		max_udp_bind(consumer_sockets[i], CONSUMER_SRC_PORT);
-//		max_udp_connect(consumer_sockets[i], &remote_ips[i], get_consumer_port(i));
-//	}
 
 	max_udpfp_unitx_t *consumer_fp = NULL;
-//	for (size_t i = 0; i < numConsumers; i++) {
-		if (max_udpfp_unitx_init(maxfile, engine, "Consumers", &consumer_fp)) {
-			printf("fail to initialize consumer_fp\n");
-			exit(1);
-		}
-//	}
+	if (max_udpfp_unitx_init(maxfile, engine, "Consumers", &consumer_fp)) {
+		printf("fail to initialize consumer_fp\n");
+		exit(1);
+	}
 
-		max_udpfp_error_t err;
+	max_udpfp_error_t err;
 	for (size_t i = 0; i < numConsumers; i++) {
 		if ((err = max_udpfp_unitx_open(consumer_fp, i, CONSUMER_SRC_PORT + i, &remote_ips[i], get_consumer_port(i), 0))) {
 			printf("fail to open consumer_fp for socket #%d, error msg: %s\n", i, max_udpfp_error_string(err));
@@ -159,14 +147,6 @@ static void init_consumers(max_file_t *maxfile, max_engine_t * engine, size_t nu
 		}
 	}
 }
-
-//static void init_multicast_feed()
-//{
-//	printf("Setting up multicast feed socket...\n");
-//	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_top_ip, &netmask);
-//	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "UdpMulticastFeed");
-//	max_udp_bind_ip(dfe_socket, &multicast_ip, MULTICAST_PORT);
-//}
 
 static void init_multicast_feed(max_file_t *maxfile, max_engine_t * engine)
 {
