@@ -8,23 +8,22 @@ import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
 import com.maxeler.networking.v1.framed_kernels.ThroughputFramedKernel;
 import com.maxeler.networking.v1.kernel_types.SimpleFramedLinkType;
-import com.maxeler.networking.v1.kernel_types.UDPOneToOneRXType;
+import com.maxeler.udp.fastpath.types.UdpUniRxType;
 
 public class UdpOneToOneRxKernel extends ThroughputFramedKernel {
 	public static final String INPUT = "input";
 	public static final String OUTPUT = "output";
 
-	public static final UDPOneToOneRXType INPUT_TYPE = new UDPOneToOneRXType();
 	public static final SimpleFramedLinkType OUTPUT_TYPE = new SimpleFramedLinkType();
 
-	public UdpOneToOneRxKernel(final KernelParameters params) {
+	public UdpOneToOneRxKernel(final KernelParameters params, UdpUniRxType inputType) {
 		super(params);
 
 		final NonBlockingInput<DFEStruct> src  = io.nonBlockingInput(
 			INPUT,
-			INPUT_TYPE.getDFEStructType(),
+			inputType.getDFEStructType(),
 			constant.var(true),
-			INPUT_TYPE.getDFEStructType().getPositionForField(UDPOneToOneRXType.EOF),
+			inputType.getDFEStructType().getPositionForField(inputType.getEOF()),
 			DelimiterMode.EOF_POSITION,
 			1,
 			NonBlockingMode.NO_TRICKLING);
@@ -45,15 +44,17 @@ public class UdpOneToOneRxKernel extends ThroughputFramedKernel {
 		 * This is not done here for clarity.
 		 */
 
-		final DFEVar sof = dataIn[UDPOneToOneRXType.SOF];
+		final DFEVar sof = dataIn[inputType.getSOF()];
 		final DFEVar insertMetadata = sof;
-		final DFEVar metadata = (DFEVar)dataIn[UDPOneToOneRXType.SOCKET] # constant.var(dfeRawBits(56), 0);
+		final DFEVar metadata = (DFEVar)dataIn[UdpUniRxType.SOCKET] # constant.var(dfeRawBits(
+				OUTPUT_TYPE.getDFEStructType().getTypeForField(OUTPUT_TYPE.getData()).getTotalBits() -
+				inputType.getTypeForField(UdpUniRxType.SOCKET).getTotalBits()), 0);
 
 		final DFEStruct out = OUTPUT_TYPE.getDFEStructType().newInstance(this);
-		out[SimpleFramedLinkType.SOF] <== dataIn[UDPOneToOneRXType.SOF];
-		out[SimpleFramedLinkType.EOF] <== stream.offset((DFEVar)dataIn[UDPOneToOneRXType.EOF] & inputValid, -1);
-		out[SimpleFramedLinkType.MOD] <== stream.offset((DFEVar)dataIn[UDPOneToOneRXType.MOD], -1);
-		out[SimpleFramedLinkType.DATA] <== insertMetadata ? metadata : stream.offset((DFEVar)dataIn[UDPOneToOneRXType.DATA], -1);
+		out[SimpleFramedLinkType.SOF] <== dataIn[inputType.getSOF()];
+		out[SimpleFramedLinkType.EOF] <== stream.offset((DFEVar)dataIn[inputType.getEOF()] & inputValid, -1);
+		out[SimpleFramedLinkType.MOD] <== stream.offset((DFEVar)dataIn[inputType.getMod()], -1);
+		out[SimpleFramedLinkType.DATA] <== insertMetadata ? metadata : stream.offset((DFEVar)dataIn[inputType.getData()], -1);
 
 		final DFEVar outputValid = inputValid | stream.offset(inputValid, -1);
 		io.output(OUTPUT, out, OUTPUT_TYPE.getDFEStructType(), outputValid);

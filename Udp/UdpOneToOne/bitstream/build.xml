@@ -8,10 +8,17 @@
 
 	<taskdef name="maxjcompiler" classname="org.eclipse.jdt.core.ant.taskdef.MaxjTask" classpath="${env.MAXCOMPILERDIR}/lib/MaxIDE/ecj.jar" onerror="ignore"/>
 
-	<property name="maxeda"   value="${env.MAXCOMPILERDIR}/lib/MaxCompiler.jar"/>
+  <property name="maxeda"   value="${env.MAXCOMPILERJCP}"/>
+  <property name="maxnet"   value="${env.MAXCOMPILERNETJCP}"/>
+  <property name="maxpowernet"   value="${env.MAXPOWERNETJCP}"/>
+  <property name="maxudpfp" value="${env.MAXUDPFPDIR}/lib/MaxUdpFastPath.jar"/>
+
 	<path id="bitstreams.local.classpath">
 		<pathelement location="bin"/>
 		<pathelement location="${maxeda}"/>
+    <pathelement location="${maxnet}"/>
+    <pathelement location="${maxpowernet}"/>
+    <pathelement location="${maxudpfp}"/>
 	</path>
 
 	<target name="init">
@@ -40,7 +47,7 @@
 			<classpath refid="bitstreams.local.classpath"/>
 		</maxjcompiler>
 	</target>
-	
+
 	<target name="UdpOneToOne" depends="build">
 		<java classname="com.maxeler.examples.udpOneToOne.UdpOneToOneManager" failonerror="true" fork="yes">
 			<arg line="target=DFE_SIM" />

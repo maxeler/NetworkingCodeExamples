@@ -6,9 +6,9 @@ import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
 import com.maxeler.maxcompiler.v2.managers.custom.stdlib.DebugLevel;
 import com.maxeler.networking.v1.managers.NetworkManager;
 import com.maxeler.networking.v1.managers.netlib.Max4NetworkConnection;
-import com.maxeler.networking.v1.managers.netlib.UDPChecksumMode;
-import com.maxeler.networking.v1.managers.netlib.UDPConnectionMode;
-import com.maxeler.networking.v1.managers.netlib.UDPStream;
+import com.maxeler.udp.fastpath.MaxUdpFastPath;
+import com.maxeler.udp.fastpath.MaxUdpUniRx;
+import com.maxeler.udp.fastpath.MaxUdpUniTx;
 
 public class UdpOneToOneManager extends NetworkManager {
 
@@ -17,7 +17,11 @@ public class UdpOneToOneManager extends NetworkManager {
 
 		debug.setDebugLevel(new DebugLevel().setHasStreamStatus(params.hasStreamStatus()));
 
-		final UDPStream udpTop1 = addUDPStream("udpTopPort1", Max4NetworkConnection.QSFP_TOP_10G_PORT1, UDPConnectionMode.OneToOne, UDPChecksumMode.Disabled);
+		Max4NetworkConnection connectionSrc = Max4NetworkConnection.QSFP_TOP_10G_PORT1;
+		network_config.setEthernetMacType(EthernetMacType.LOW_LATENCY);
+		MaxUdpUniRx udpRx = MaxUdpFastPath.createUniRx(this, "udpRx", connectionSrc);
+		MaxUdpUniTx udpTx = MaxUdpFastPath.createUniTx(this, "udpTx", connectionSrc);
+
 		final ManagerClock netClk = getNetworkClock(Max4NetworkConnection.QSFP_TOP_10G_PORT1);
 		pushDefaultClock(netClk);
 
@@ -26,13 +30,13 @@ public class UdpOneToOneManager extends NetworkManager {
 		 * The kernels insert the metadata into the data field and extract it again before transmitting.
 		 */
 
-		final KernelBlock rxKernel = addKernel(new UdpOneToOneRxKernel(makeKernelParameters("RxKernel")));
-		rxKernel.getInput(UdpOneToOneRxKernel.INPUT) <== udpTop1.getReceiveStream();
+		final KernelBlock rxKernel = addKernel(new UdpOneToOneRxKernel(makeKernelParameters("RxKernel"), udpRx.getRxStreamType()));
+		rxKernel.getInput(UdpOneToOneRxKernel.INPUT) <== udpRx.getRxStream();
 		addFramedStreamToCPU("toCpu", UdpOneToOneRxKernel.OUTPUT_TYPE, 512, 512) <== rxKernel.getOutput(UdpOneToOneRxKernel.OUTPUT);
 
-		final KernelBlock txKernel = addKernel(new UdpOneToOneTxKernel(makeKernelParameters("TxKernel")));
+		final KernelBlock txKernel = addKernel(new UdpOneToOneTxKernel(makeKernelParameters("TxKernel"), udpTx.getTxStreamType()));
 		txKernel.getInput(UdpOneToOneTxKernel.INPUT) <== addFramedStreamFromCPU("fromCpu", UdpOneToOneTxKernel.INPUT_TYPE);
-		udpTop1.getTransmitStream() <== txKernel.getOutput(UdpOneToOneTxKernel.OUTPUT);
+		udpTx.getTxStream() <== txKernel.getOutput(UdpOneToOneTxKernel.OUTPUT);
 	}
 
 	public static void main(final String[] args) {

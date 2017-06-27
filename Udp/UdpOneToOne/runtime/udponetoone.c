@@ -16,6 +16,8 @@
 #include <unistd.h>
 
 #include <MaxSLiCInterface.h>
+#include <MaxSLiCNetInterface.h>
+#include <max_udp_fast_path.h>
 
 
 #define IN_PORT 9910
@@ -35,8 +37,8 @@ int main(int argc, char *argv[]) {
 	struct in_addr netmask;
 	inet_aton("255.255.255.0", &netmask);
 
-//	struct in_addr mcastaddr;
-//	inet_aton("224.0.0.1", &mcastaddr);
+	//	struct in_addr mcastaddr;
+	//	inet_aton("224.0.0.1", &mcastaddr);
 
 	max_file_t *maxfile = UdpOneToOne_init();
 	max_engine_t * engine = max_load(maxfile, "*");
@@ -58,10 +60,39 @@ int main(int argc, char *argv[]) {
 	max_framed_stream_t *fromCpu = max_framed_stream_setup(engine, "fromCpu", fromCpuBuffer, bufferSize, 512);
 
 	max_ip_config(engine, MAX_NET_CONNECTION_QSFP_TOP_10G_PORT1, &dfe_ip, &netmask);
-	max_udp_socket_t *dfe_socket = max_udp_create_socket(engine, "udpTopPort1");
-//	max_udp_bind_ip(dfe_socket, &mcastaddr, IN_PORT);
-	max_udp_bind(dfe_socket, IN_PORT);
-	max_udp_connect(dfe_socket, &remote_ip, OUT_PORT);
+
+	max_udpfp_error_t udp_err;
+	max_udpfp_unirx_t *max_udpfp_rx;
+	udp_err = max_udpfp_unirx_init(maxfile, engine, "udpRx", &max_udpfp_rx);
+	if(udp_err) {
+		fprintf(stderr, "Failed to initialize hardware UDP rx stream: %s\n",
+				max_udpfp_error_string(udp_err));
+		exit(1);
+	}
+
+	max_udpfp_unitx_t *max_udpfp_tx;
+	udp_err = max_udpfp_unitx_init(maxfile, engine, "udpTx", &max_udpfp_tx);
+	if(udp_err) {
+		fprintf(stderr, "Failed to initialize hardware UDP tx stream: %s\n",
+				max_udpfp_error_string(udp_err));
+		exit(1);
+	}
+
+	int hw_rx_socket = 0;
+	udp_err = max_udpfp_unirx_open(max_udpfp_rx, hw_rx_socket, IN_PORT, &remote_ip, OUT_PORT);
+	if(udp_err) {
+		fprintf(stderr, "Failed to open hardware UDP rx stream: %s\n",
+				max_udpfp_error_string(udp_err));
+		exit(1);
+	}
+
+	int hw_tx_socket = 0;
+	udp_err = max_udpfp_unitx_open(max_udpfp_tx, hw_tx_socket, IN_PORT, &remote_ip, OUT_PORT, 0);
+	if(udp_err) {
+		fprintf(stderr, "Failed to open hardware UDP tx stream: %s\n",
+				max_udpfp_error_string(udp_err));
+		exit(1);
+	}
 
 	printf("Listening on %s port %d\n", argv[1], IN_PORT); fflush(stdout);
 
@@ -89,7 +120,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	max_udp_close(dfe_socket);
+	max_udpfp_unirx_close(max_udpfp_rx, hw_rx_socket);
+	max_udpfp_unitx_close(max_udpfp_tx, hw_tx_socket);
+	max_udpfp_unirx_destroy(max_udpfp_rx);
+	max_udpfp_unitx_destroy(max_udpfp_tx);
+
 	max_unload(engine);
 	max_file_free(maxfile);
 
